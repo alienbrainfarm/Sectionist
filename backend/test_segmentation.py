@@ -86,7 +86,7 @@ def test_segmentation():
         print("\n🎼 Detected Sections:")
         detected_sections = results["sections"]
         for section in detected_sections:
-            conf = section['confidence']
+            conf = section["confidence"]
             print(
                 f"  {section['name']}: {section['start']}s - "
                 f"{section['end']}s (confidence: {conf})"
@@ -112,9 +112,20 @@ def test_segmentation():
 
         print("\n🎉 Test completed successfully!")
 
+        # Add assertions for pytest
+        assert len(detected_sections) > 0, "No sections detected"
+        assert (
+            3 <= len(detected_sections) <= 7
+        ), f"Unexpected number of sections: {len(detected_sections)}"
+        assert (
+            len(unique_labels) >= 2
+        ), f"Insufficient label diversity: {len(unique_labels)}"
+
     except Exception as e:
         print(f"❌ Error during analysis: {e}")
-        return False
+        raise  # Re-raise for pytest to catch
+
+    return True
 
     return True
 

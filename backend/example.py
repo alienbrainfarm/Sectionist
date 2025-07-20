@@ -22,6 +22,7 @@ The segmentation algorithm works by:
 import os
 import sys
 import numpy as np
+
 # Note: scipy imports available for advanced processing if needed
 # from scipy import ndimage, signal
 

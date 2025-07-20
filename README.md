@@ -1,5 +1,9 @@
 # Sectionist
 
+![CI/CD Pipeline](https://github.com/alienbrainfarm/Sectionist/workflows/CI%2FCD%20Pipeline/badge.svg)
+[![codecov](https://codecov.io/gh/alienbrainfarm/Sectionist/branch/main/graph/badge.svg)](https://codecov.io/gh/alienbrainfarm/Sectionist)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 Sectionist is a macOS application that helps musicians analyze songs by splitting audio into meaningful sections (intro, verse, chorus, etc.), detecting key changes, and mapping basic chords. The app uses a SwiftUI frontend and a local Python backend for audio/ML processing.
 
 **Current Features:**
@@ -138,7 +142,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for complete guidelines.
 - [x] Basic project structure (Swift + Python)
 - [x] Development environment setup
 - [x] **Frontend-backend communication via HTTP API**
-- [ ] CI/CD pipeline
+- [x] **CI/CD pipeline with comprehensive testing and quality assurance**
 
 ### Phase 2: Core Audio Analysis  
 - [x] Audio file loading and preprocessing
@@ -186,7 +190,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 - **[Product Requirements](docs/PRD.md)** - Detailed product specification
 - **[Contributing Guide](CONTRIBUTING.md)** - Development and contribution guidelines
-- **[Development Setup](docs/DEVELOPMENT.md)** - Detailed dev environment setup (planned)
+- **[Development Setup](docs/DEVELOPMENT.md)** - Detailed dev environment setup
+- **[CI/CD Pipeline](docs/CI_CD.md)** - Continuous integration and deployment guide
 
 ## Technology Details
 
