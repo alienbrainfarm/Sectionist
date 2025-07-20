@@ -75,6 +75,7 @@ struct TimelineView: View {
                 startAnalysis()
             }
             .buttonStyle(.borderedProminent)
+            .disabled(isAnalyzing)
         }
         .frame(maxWidth: .infinity, minHeight: 200)
     }

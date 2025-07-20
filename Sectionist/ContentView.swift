@@ -1,8 +1,10 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State private var selectedAudioFile: URL?
     @State private var isAnalyzing = false
+    @State private var isShowingFilePicker = false
     
     var body: some View {
         VStack {
@@ -29,6 +31,20 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 800, minHeight: 600)
+        .fileImporter(
+            isPresented: $isShowingFilePicker,
+            allowedContentTypes: [.audio],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    selectedAudioFile = url
+                }
+            case .failure(let error):
+                print("File selection failed: \(error.localizedDescription)")
+            }
+        }
     }
 }
 
@@ -60,7 +76,7 @@ struct AudioFileInfoView: View {
                     .font(.headline)
                 Spacer()
                 Button("Change File") {
-                    // TODO: Implement file change functionality
+                    isShowingFilePicker = true
                 }
                 .buttonStyle(.bordered)
             }
@@ -95,7 +111,7 @@ struct AudioFileDropView: View {
             }
             
             Button("Choose File") {
-                // TODO: Implement file picker
+                isShowingFilePicker = true
             }
             .buttonStyle(.borderedProminent)
         }
@@ -105,9 +121,17 @@ struct AudioFileDropView: View {
                 .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [5]))
         )
         .padding()
-        .onDrop(of: [.audio], isTargeted: nil) { providers in
-            // TODO: Implement drag and drop functionality
-            return false
+        .onDrop(of: [UTType.audio], isTargeted: nil) { providers in
+            guard let provider = providers.first else { return false }
+            
+            provider.loadItem(forTypeIdentifier: UTType.audio.identifier, options: nil) { (data, error) in
+                if let url = data as? URL {
+                    DispatchQueue.main.async {
+                        selectedAudioFile = url
+                    }
+                }
+            }
+            return true
         }
     }
 }
