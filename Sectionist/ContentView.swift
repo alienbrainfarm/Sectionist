@@ -1,9 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-import SwiftUI
-import UniformTypeIdentifiers
-
 struct ContentView: View {
     @StateObject private var themeManager = ThemeManager()
     @State private var selectedAudioFile: URL?
