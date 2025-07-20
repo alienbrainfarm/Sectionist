@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 """
-Sectionist Backend Example
+Sectionist Backend - Song Structure Segmentation Prototype
 
-This script demonstrates basic audio analysis functionality that will be used
-by the Sectionist macOS app for song section detection, key detection, and
-basic chord mapping.
+This script demonstrates advanced audio analysis functionality that will be used
+by the Sectionist macOS app for intelligent song section detection, key detection, 
+and basic chord mapping.
+
+Key Features:
+- Music Information Retrieval-based song structure segmentation
+- Frame-based boundary detection using chroma, energy, and spectral features
+- Intelligent section labeling with confidence scores
+- Support for various audio formats (mp3, wav, flac, etc.)
+
+The segmentation algorithm works by:
+1. Extracting musical features (chroma, RMS energy, spectral centroid)
+2. Using sliding window analysis to detect significant changes
+3. Applying heuristic labeling based on position and musical characteristics
+4. Providing confidence scores for each detected section
 """
 
 import os
@@ -188,13 +200,29 @@ def label_sections_frame_based(boundary_times, chroma, rms, spectral_centroid, f
 
 def analyze_audio_file(file_path):
     """
-    Analyze an audio file and extract basic musical information.
+    Analyze an audio file and extract musical information including intelligent
+    song structure segmentation.
+    
+    This function uses Music Information Retrieval (MIR) techniques to:
+    - Detect song sections (intro/verse/chorus/bridge/outro)
+    - Estimate tempo and key
+    - Provide confidence scores for detected sections
     
     Args:
         file_path (str): Path to the audio file
         
     Returns:
-        dict: Analysis results containing tempo, key, and basic structure info
+        dict: Analysis results containing:
+            - file_path: Input file path
+            - duration: Song duration in seconds  
+            - tempo: Estimated tempo in BPM
+            - key: Estimated musical key
+            - sections: List of detected sections with:
+                - name: Section label (e.g., "Intro", "Verse 1", "Chorus")
+                - start: Start time in seconds
+                - end: End time in seconds  
+                - confidence: Confidence score (0-1)
+            - beats_detected: Number of beats detected
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Audio file not found: {file_path}")
