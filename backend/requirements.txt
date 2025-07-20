@@ -1,0 +1,15 @@
+# Audio processing and analysis
+librosa>=0.10.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Web framework for API
+flask>=2.3.0
+
+# Additional audio processing libraries (mentioned in PRD)
+# madmom>=0.16.1  # Uncomment when needed for advanced analysis
+# essentia>=2.1b1  # Uncomment when needed, requires additional setup
+
+# Development and testing
+pytest>=7.0.0
+requests>=2.31.0
