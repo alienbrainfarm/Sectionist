@@ -1,10 +1,15 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+import SwiftUI
+import UniformTypeIdentifiers
+
 struct ContentView: View {
+    @StateObject private var themeManager = ThemeManager()
     @State private var selectedAudioFile: URL?
     @State private var isAnalyzing = false
     @State private var isShowingFilePicker = false
+    @State private var isShowingThemeSettings = false
     
     var body: some View {
         VStack {
@@ -12,7 +17,7 @@ struct ContentView: View {
             
             if let audioFile = selectedAudioFile {
                 VStack {
-                    AudioFileInfoView(audioFile: audioFile)
+                    AudioFileInfoView(audioFile: audioFile, isShowingFilePicker: $isShowingFilePicker)
                     
                     Divider()
                         .padding(.vertical)
@@ -27,10 +32,21 @@ struct ContentView: View {
                 }
                 .padding()
             } else {
-                AudioFileDropView(selectedAudioFile: $selectedAudioFile)
+                AudioFileDropView(selectedAudioFile: $selectedAudioFile, isShowingFilePicker: $isShowingFilePicker)
             }
         }
+        .environment(\.colorTheme, themeManager.currentTheme)
         .frame(minWidth: 800, minHeight: 600)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    isShowingThemeSettings = true
+                } label: {
+                    Image(systemName: "paintbrush.fill")
+                        .help("Theme Settings")
+                }
+            }
+        }
         .fileImporter(
             isPresented: $isShowingFilePicker,
             allowedContentTypes: [.audio],
@@ -45,7 +61,12 @@ struct ContentView: View {
                 print("File selection failed: \(error.localizedDescription)")
             }
         }
+        .sheet(isPresented: $isShowingThemeSettings) {
+            ThemeSelectionView()
+                .frame(minWidth: 500, minHeight: 400)
+        }
     }
+}
 }
 
 struct HeaderView: View {
@@ -66,6 +87,7 @@ struct HeaderView: View {
 
 struct AudioFileInfoView: View {
     let audioFile: URL
+    @Binding var isShowingFilePicker: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -93,6 +115,7 @@ struct AudioFileInfoView: View {
 
 struct AudioFileDropView: View {
     @Binding var selectedAudioFile: URL?
+    @Binding var isShowingFilePicker: Bool
     
     var body: some View {
         VStack(spacing: 20) {

@@ -30,14 +30,14 @@ struct TimelineView: View {
     private func loadMockData() {
         // Mock data for demonstration
         sections = [
-            SongSection(name: "Intro", startTime: 0, endTime: 15, color: .blue),
-            SongSection(name: "Verse 1", startTime: 15, endTime: 45, color: .green),
-            SongSection(name: "Chorus", startTime: 45, endTime: 75, color: .orange),
-            SongSection(name: "Verse 2", startTime: 75, endTime: 105, color: .green),
-            SongSection(name: "Chorus", startTime: 105, endTime: 135, color: .orange),
-            SongSection(name: "Bridge", startTime: 135, endTime: 165, color: .purple),
-            SongSection(name: "Chorus", startTime: 165, endTime: 195, color: .orange),
-            SongSection(name: "Outro", startTime: 195, endTime: 220, color: .red)
+            SongSection(name: "Intro", startTime: 0, endTime: 15, type: .intro),
+            SongSection(name: "Verse 1", startTime: 15, endTime: 45, type: .verse),
+            SongSection(name: "Chorus", startTime: 45, endTime: 75, type: .chorus),
+            SongSection(name: "Verse 2", startTime: 75, endTime: 105, type: .verse),
+            SongSection(name: "Chorus", startTime: 105, endTime: 135, type: .chorus),
+            SongSection(name: "Bridge", startTime: 135, endTime: 165, type: .bridge),
+            SongSection(name: "Chorus", startTime: 165, endTime: 195, type: .chorus),
+            SongSection(name: "Outro", startTime: 195, endTime: 220, type: .outro)
         ]
         totalDuration = 220
     }
@@ -159,6 +159,7 @@ struct TimelineView: View {
 struct SectionBlock: View {
     let section: SongSection
     let totalDuration: TimeInterval
+    @Environment(\.colorTheme) private var theme
     
     private var blockWidth: CGFloat {
         let sectionDuration = section.endTime - section.startTime
@@ -169,12 +170,12 @@ struct SectionBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Rectangle()
-                .fill(section.color)
+                .fill(theme.color(for: section.type))
                 .frame(width: blockWidth, height: 30)
                 .overlay(
                     Text(section.name)
                         .font(.caption)
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.textColor)
                         .fontWeight(.medium)
                 )
                 .cornerRadius(4)
@@ -197,7 +198,7 @@ struct SongSection {
     let name: String
     let startTime: TimeInterval
     let endTime: TimeInterval
-    let color: Color
+    let type: SectionType
 }
 
 #Preview {
