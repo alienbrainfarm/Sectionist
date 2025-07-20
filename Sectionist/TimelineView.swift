@@ -3,9 +3,15 @@ import SwiftUI
 struct TimelineView: View {
     let audioFile: URL
     @Binding var isAnalyzing: Bool
-    @State private var sections: [SongSection] = []
+    @Binding var sections: [SongSection]
+    let onAnalysisComplete: (BackendAnalysisData) -> Void
+    
     @State private var currentTime: TimeInterval = 0
-    @State private var totalDuration: TimeInterval = 300 // Placeholder duration
+    @State private var totalDuration: TimeInterval = 300 // Will be updated from analysis
+    @State private var errorMessage: String?
+    @State private var showingError = false
+    
+    @StateObject private var analysisService = AnalysisService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -23,7 +29,15 @@ struct TimelineView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
-            loadMockData()
+            if sections.isEmpty {
+                // Only load mock data if no real analysis has been done
+                loadMockData()
+            }
+        }
+        .alert("Analysis Error", isPresented: $showingError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
         }
     }
     
@@ -141,11 +155,37 @@ struct TimelineView: View {
     }
     
     private func startAnalysis() {
-        isAnalyzing = true
-        
-        // Simulate analysis delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            isAnalyzing = false
+        Task {
+            isAnalyzing = true
+            
+            do {
+                let response = try await analysisService.analyzeAudio(fileURL: audioFile)
+                
+                await MainActor.run {
+                    if let analysisData = response.analysis {
+                        // Update local duration for timeline display
+                        totalDuration = analysisData.duration
+                        
+                        // Notify parent about the completion
+                        onAnalysisComplete(analysisData)
+                        
+                        print("Analysis completed: \(sections.count) sections detected")
+                        for section in sections {
+                            print("  \(section.name): \(section.startTime)s - \(section.endTime)s")
+                        }
+                    }
+                    
+                    isAnalyzing = false
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isAnalyzing = false
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                    print("Analysis error: \(error)")
+                }
+            }
         }
     }
     
@@ -201,6 +241,14 @@ struct SongSection {
 }
 
 #Preview {
-    TimelineView(audioFile: URL(fileURLWithPath: "/sample.mp3"), isAnalyzing: .constant(false))
-        .frame(width: 400, height: 300)
+    TimelineView(
+        audioFile: URL(fileURLWithPath: "/sample.mp3"), 
+        isAnalyzing: .constant(false),
+        sections: .constant([
+            SongSection(name: "Intro", startTime: 0, endTime: 15, color: .blue),
+            SongSection(name: "Verse", startTime: 15, endTime: 45, color: .green)
+        ]),
+        onAnalysisComplete: { _ in }
+    )
+    .frame(width: 400, height: 300)
 }

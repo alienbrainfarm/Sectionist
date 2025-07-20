@@ -8,6 +8,10 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
     
+    // Shared analysis state
+    @State private var analysisResults: AnalysisData?
+    @State private var songSections: [SongSection] = []
+    
     var body: some View {
         VStack {
             HeaderView()
@@ -20,6 +24,8 @@ struct ContentView: View {
                         onClear: {
                             selectedAudioFile = nil
                             isAnalyzing = false
+                            analysisResults = nil
+                            songSections = []
                         }
                     )
                     
@@ -27,11 +33,20 @@ struct ContentView: View {
                         .padding(.vertical)
                     
                     HStack {
-                        TimelineView(audioFile: audioFile, isAnalyzing: $isAnalyzing)
+                        TimelineView(
+                            audioFile: audioFile, 
+                            isAnalyzing: $isAnalyzing, 
+                            sections: $songSections,
+                            onAnalysisComplete: handleAnalysisComplete
+                        )
                         
                         Divider()
                         
-                        AnalysisResultsView(audioFile: audioFile, isAnalyzing: $isAnalyzing)
+                        AnalysisResultsView(
+                            audioFile: audioFile, 
+                            isAnalyzing: $isAnalyzing, 
+                            analysisResults: $analysisResults
+                        )
                     }
                 }
                 .padding()
@@ -62,6 +77,13 @@ struct ContentView: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred")
         }
+    }
+    
+    private func handleAnalysisComplete(backendData: BackendAnalysisData) {
+        // Update both timeline and analysis results with the same data
+        songSections = backendData.toSongSections()
+        analysisResults = backendData.toAnalysisData()
+    }
     }
 }
 

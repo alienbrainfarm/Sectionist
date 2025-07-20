@@ -5,6 +5,10 @@ Sectionist is a macOS application that helps musicians analyze songs by splittin
 **Current Features:**
 - 📄 Comprehensive development documentation
 - 🏗️ Project structure and architecture planning
+- 🎵 **Song structure segmentation (intro, verse, chorus, etc.)**
+- 🎹 **Key and tempo detection**  
+- 📡 **SwiftUI ↔ Python HTTP communication**
+- 🎸 Basic chord mapping (backend ready, UI pending)
 
 **Planned Features:**
 - 🎵 Song structure segmentation (intro, verse, chorus, etc.)
@@ -36,20 +40,38 @@ Sectionist is a macOS application that helps musicians analyze songs by splittin
    cd Sectionist
    ```
 
-2. **Set up the backend** (when available):
+2. **Set up the backend:**
    ```bash
    cd backend
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
+   ./start_server.sh
    ```
+   
+   The startup script will:
+   - Create a Python virtual environment
+   - Install all required dependencies (librosa, flask, etc.)
+   - Start the HTTP server on `http://127.0.0.1:5000`
 
-3. **Set up the frontend** (when available):
+3. **Set up the frontend:**
    ```bash
-   cd Sectionist
+   cd ../Sectionist
    open Sectionist.xcodeproj
    # Build and run in Xcode (⌘+R)
    ```
+
+### Usage
+
+1. **Start the backend server** (if not already running):
+   ```bash
+   cd backend && ./start_server.sh
+   ```
+
+2. **Launch the SwiftUI app** from Xcode
+
+3. **Analyze audio files**:
+   - Drag and drop an audio file into the app, or
+   - Click "Choose File" to select an audio file
+   - Click "Analyze Audio" to process the file
+   - View the results in the timeline and analysis panels
 
 ### Development Setup
 
@@ -113,15 +135,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for complete guidelines.
 
 ### Phase 1: Foundation (Current)
 - [x] Project setup and documentation
-- [ ] Basic project structure (Swift + Python)
-- [ ] Development environment setup
+- [x] Basic project structure (Swift + Python)
+- [x] Development environment setup
+- [x] **Frontend-backend communication via HTTP API**
 - [ ] CI/CD pipeline
 
 ### Phase 2: Core Audio Analysis  
-- [ ] Audio file loading and preprocessing
-- [ ] Basic song segmentation algorithm
-- [ ] Key detection implementation
-- [ ] Frontend-backend communication
+- [x] Audio file loading and preprocessing
+- [x] Basic song segmentation algorithm
+- [x] Key detection implementation
+- [x] **Frontend-backend communication**
 
 ### Phase 3: User Interface
 - [ ] SwiftUI audio timeline visualization
@@ -198,4 +221,58 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Status**: 🚧 Early Development - This project is in active development. The core functionality is being built and APIs may change.
+**Status**: 🚧 Early Development - This project is in active development. The core functionality is built and working for local analysis.
+
+## Communication Architecture
+
+The application uses a local HTTP server architecture:
+
+- **Frontend**: SwiftUI macOS app with drag-and-drop file support
+- **Backend**: Python Flask server running locally (`http://127.0.0.1:5000`)
+- **Communication**: REST API with JSON data exchange
+- **Analysis**: librosa-based audio processing with music information retrieval
+
+See [Communication Protocol Documentation](docs/COMMUNICATION_PROTOCOL.md) for detailed API specifications.
+
+## Troubleshooting
+
+### Backend Issues
+
+1. **"librosa not available" error**:
+   ```bash
+   cd backend
+   source venv/bin/activate
+   pip install --force-reinstall librosa
+   ```
+
+2. **"Port already in use" error**:
+   ```bash
+   # Find and kill process using port 5000
+   lsof -ti:5000 | xargs kill -9
+   ```
+
+3. **Python dependencies missing**:
+   ```bash
+   cd backend
+   ./start_server.sh  # This will reinstall everything
+   ```
+
+### Frontend Issues
+
+1. **"Connection refused" error in SwiftUI app**:
+   - Make sure the backend server is running
+   - Check that `http://127.0.0.1:5000/health` returns a response
+
+2. **File access errors**:
+   - Ensure the audio file is in a accessible location
+   - Try copying the file to your Documents folder
+
+3. **Build errors in Xcode**:
+   - Make sure you have Xcode 14+ installed
+   - Clean build folder (⌘+Shift+K) and rebuild
+
+### Performance Issues
+
+- Large files (>10 minutes) may take 2-3 minutes to process
+- Supported formats: MP3, WAV, AIFF, M4A, FLAC, OGG, AAC
+- Maximum file size: 100MB

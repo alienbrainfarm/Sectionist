@@ -3,7 +3,12 @@ import SwiftUI
 struct AnalysisResultsView: View {
     let audioFile: URL
     @Binding var isAnalyzing: Bool
-    @State private var analysisResults: AnalysisData?
+    @Binding var analysisResults: AnalysisData?
+    
+    @State private var errorMessage: String?
+    @State private var showingError = false
+    
+    @StateObject private var analysisService = AnalysisService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -21,7 +26,15 @@ struct AnalysisResultsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
-            loadMockAnalysisData()
+            if analysisResults == nil {
+                // Only load mock data if no real analysis has been done
+                loadMockAnalysisData()
+            }
+        }
+        .alert("Analysis Error", isPresented: $showingError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
         }
     }
     
@@ -243,6 +256,15 @@ struct ChordInfo {
 }
 
 #Preview {
-    AnalysisResultsView(audioFile: URL(fileURLWithPath: "/sample.mp3"), isAnalyzing: .constant(false))
-        .frame(width: 300, height: 500)
+    AnalysisResultsView(
+        audioFile: URL(fileURLWithPath: "/sample.mp3"), 
+        isAnalyzing: .constant(false),
+        analysisResults: .constant(AnalysisData(
+            detectedKey: "C Major",
+            bpm: 120,
+            keyChanges: [],
+            chordProgression: []
+        ))
+    )
+    .frame(width: 300, height: 500)
 }
