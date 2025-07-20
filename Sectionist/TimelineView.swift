@@ -10,14 +10,37 @@ struct TimelineView: View {
     @State private var totalDuration: TimeInterval = 300 // Will be updated from analysis
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var selectedSection: SongSection?
+    @State private var hoveredSection: SongSection?
     
     @StateObject private var analysisService = AnalysisService.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Timeline")
-                .font(.title2)
-                .fontWeight(.semibold)
+        VStack(alignment: .leading, spacing: 16) {
+            // Enhanced header with duration info
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Timeline")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    if !sections.isEmpty {
+                        Text("Duration: \(formatTime(totalDuration)) • \(sections.count) sections")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                if !sections.isEmpty && !isAnalyzing {
+                    Button("Re-analyze") {
+                        startAnalysis()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
             
             if isAnalyzing {
                 AnalyzingPlaceholder()
@@ -42,116 +65,181 @@ struct TimelineView: View {
     }
     
     private func loadMockData() {
-        // Mock data for demonstration
+        // Enhanced mock data for demonstration with more realistic song structure
         sections = [
-            SongSection(name: "Intro", startTime: 0, endTime: 15, color: .blue),
-            SongSection(name: "Verse 1", startTime: 15, endTime: 45, color: .green),
-            SongSection(name: "Chorus", startTime: 45, endTime: 75, color: .orange),
-            SongSection(name: "Verse 2", startTime: 75, endTime: 105, color: .green),
-            SongSection(name: "Chorus", startTime: 105, endTime: 135, color: .orange),
-            SongSection(name: "Bridge", startTime: 135, endTime: 165, color: .purple),
-            SongSection(name: "Chorus", startTime: 165, endTime: 195, color: .orange),
-            SongSection(name: "Outro", startTime: 195, endTime: 220, color: .red)
+            SongSection(name: "Intro", startTime: 0, endTime: 12, color: .blue),
+            SongSection(name: "Verse 1", startTime: 12, endTime: 40, color: .green),
+            SongSection(name: "Pre-Chorus", startTime: 40, endTime: 52, color: .mint),
+            SongSection(name: "Chorus", startTime: 52, endTime: 80, color: .orange),
+            SongSection(name: "Verse 2", startTime: 80, endTime: 108, color: .green),
+            SongSection(name: "Pre-Chorus", startTime: 108, endTime: 120, color: .mint),
+            SongSection(name: "Chorus", startTime: 120, endTime: 148, color: .orange),
+            SongSection(name: "Bridge", startTime: 148, endTime: 180, color: .purple),
+            SongSection(name: "Final Chorus", startTime: 180, endTime: 220, color: .orange),
+            SongSection(name: "Outro", startTime: 220, endTime: 240, color: .red)
         ]
-        totalDuration = 220
+        totalDuration = 240
     }
     
     @ViewBuilder
     private func AnalyzingPlaceholder() -> some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.2)
+        VStack(spacing: 20) {
+            // Animated progress indicator
+            HStack(spacing: 8) {
+                ForEach(0..<3) { index in
+                    Circle()
+                        .fill(.accentColor)
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(isAnalyzing ? 1.2 : 0.8)
+                        .animation(
+                            .easeInOut(duration: 0.6)
+                            .repeatForever()
+                            .delay(Double(index) * 0.2),
+                            value: isAnalyzing
+                        )
+                }
+            }
             
-            Text("Analyzing audio structure...")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            VStack(spacing: 8) {
+                Text("Analyzing audio structure...")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text("Detecting sections, tempo, and key signature")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            // Mock progress sections appearing
+            HStack(spacing: 4) {
+                ForEach(0..<5) { index in
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(.secondary.opacity(0.3))
+                        .frame(width: 40, height: 20)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(.accentColor.opacity(0.6))
+                                .scaleEffect(x: index < 3 ? 1.0 : 0.0, anchor: .leading)
+                                .animation(
+                                    .easeInOut(duration: 0.8)
+                                    .delay(Double(index) * 0.3)
+                                    .repeatForever(),
+                                    value: isAnalyzing
+                                )
+                        )
+                }
+            }
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, minHeight: 200)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.controlBackgroundColor).opacity(0.5))
+        )
+        .onAppear {
+            // This triggers the animation
+        }
     }
     
     @ViewBuilder
     private func EmptyTimelineView() -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "waveform")
-                .font(.system(size: 40))
-                .foregroundColor(.secondary)
+        VStack(spacing: 20) {
+            Image(systemName: "waveform.path")
+                .font(.system(size: 48))
+                .foregroundColor(.accentColor.opacity(0.6))
             
-            VStack(spacing: 4) {
-                Text("No analysis available")
-                    .font(.headline)
+            VStack(spacing: 8) {
+                Text("Ready to analyze")
+                    .font(.title3)
+                    .fontWeight(.semibold)
                 
-                Text("Analysis results will appear here")
+                Text("Click below to start analyzing your audio file and discover its structure")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
             }
             
             Button("Analyze Audio") {
                 startAnalysis()
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
             .disabled(isAnalyzing)
         }
         .frame(maxWidth: .infinity, minHeight: 200)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.controlBackgroundColor).opacity(0.3))
+                .strokeBorder(Color.accentColor.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [5]))
+        )
     }
     
     @ViewBuilder
     private func TimelineContent() -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Time ruler
-            HStack {
-                ForEach(0..<Int(totalDuration/30) + 1, id: \.self) { index in
-                    let time = TimeInterval(index * 30)
-                    VStack(alignment: .leading) {
-                        Text(formatTime(time))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Rectangle()
-                            .fill(Color.secondary)
-                            .frame(width: 1, height: 4)
-                    }
-                    if index < Int(totalDuration/30) {
-                        Spacer()
-                    }
-                }
-            }
-            .padding(.horizontal, 4)
+        VStack(alignment: .leading, spacing: 12) {
+            // Enhanced time ruler with more granular markers
+            TimeRuler(totalDuration: totalDuration)
             
-            // Sections timeline
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 2) {
-                    ForEach(sections, id: \.id) { section in
-                        SectionBlock(section: section, totalDuration: totalDuration)
-                    }
+            // Main timeline with sections
+            VStack(alignment: .leading, spacing: 8) {
+                // Section details info
+                if let selected = selectedSection ?? hoveredSection {
+                    SectionInfoOverlay(section: selected)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        .animation(.easeInOut(duration: 0.2), value: selectedSection)
+                        .animation(.easeInOut(duration: 0.15), value: hoveredSection)
                 }
-                .padding(.horizontal, 4)
+                
+                // Sections timeline with enhanced visuals
+                ScrollView(.horizontal, showsIndicators: true) {
+                    HStack(spacing: 1) {
+                        ForEach(sections, id: \.id) { section in
+                            EnhancedSectionBlock(
+                                section: section,
+                                totalDuration: totalDuration,
+                                isSelected: selectedSection?.id == section.id,
+                                isHovered: hoveredSection?.id == section.id
+                            )
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedSection = selectedSection?.id == section.id ? nil : section
+                                }
+                                // Seek to section start time
+                                currentTime = section.startTime
+                            }
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    hoveredSection = hovering ? section : nil
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.controlBackgroundColor).opacity(0.5))
+                )
             }
             
-            // Playback controls (placeholder)
-            HStack {
-                Button(action: {}) {
-                    Image(systemName: "play.circle.fill")
-                        .font(.title)
-                }
-                
-                Button(action: {}) {
-                    Image(systemName: "pause.circle.fill")
-                        .font(.title)
-                }
-                
-                Slider(value: $currentTime, in: 0...totalDuration) { _ in
-                    // Handle scrubbing
-                }
-                .frame(maxWidth: .infinity)
-                
-                Text(formatTime(currentTime))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.top, 8)
+            // Enhanced playback controls
+            EnhancedPlaybackControls(
+                currentTime: $currentTime,
+                totalDuration: totalDuration,
+                isPlaying: .constant(false)
+            )
         }
         .padding()
-        .background(Color(.controlBackgroundColor))
-        .cornerRadius(8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.controlBackgroundColor))
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
     }
     
     private func startAnalysis() {
@@ -196,33 +284,94 @@ struct TimelineView: View {
     }
 }
 
-struct SectionBlock: View {
-    let section: SongSection
+struct SongSection {
+    let id = UUID()
+    let name: String
+    let startTime: TimeInterval
+    let endTime: TimeInterval
+    let color: Color
+    
+    /// Helper to get section duration
+    var duration: TimeInterval {
+        return endTime - startTime
+    }
+    
+    /// Helper to check if section is short (less than 10 seconds)
+    var isShort: Bool {
+        return duration < 10
+    }
+    
+    /// Helper to get formatted duration string
+    var formattedDuration: String {
+        if duration < 60 {
+            return String(format: "%.0fs", duration)
+        } else {
+            let minutes = Int(duration) / 60
+            let seconds = Int(duration) % 60
+            return String(format: "%dm %ds", minutes, seconds)
+        }
+    }
+}
+
+#Preview {
+    TimelineView(
+        audioFile: URL(fileURLWithPath: "/sample.mp3"), 
+        isAnalyzing: .constant(false),
+        sections: .constant([
+            SongSection(name: "Intro", startTime: 0, endTime: 12, color: .blue),
+            SongSection(name: "Verse 1", startTime: 12, endTime: 40, color: .green),
+            SongSection(name: "Chorus", startTime: 40, endTime: 68, color: .orange),
+            SongSection(name: "Bridge", startTime: 68, endTime: 92, color: .purple),
+            SongSection(name: "Final Chorus", startTime: 92, endTime: 120, color: .orange),
+            SongSection(name: "Outro", startTime: 120, endTime: 140, color: .red)
+        ]),
+        onAnalysisComplete: { _ in }
+    )
+    .frame(width: 600, height: 400)
+    .padding()
+}
+
+// MARK: - Enhanced Timeline Components
+
+struct TimeRuler: View {
     let totalDuration: TimeInterval
     
-    private var blockWidth: CGFloat {
-        let sectionDuration = section.endTime - section.startTime
-        let ratio = sectionDuration / totalDuration
-        return ratio * 400 // Base width for timeline
+    private var timeInterval: TimeInterval {
+        // Dynamic interval based on duration
+        if totalDuration <= 60 {
+            return 10 // 10 second intervals for short songs
+        } else if totalDuration <= 300 {
+            return 30 // 30 second intervals for medium songs
+        } else {
+            return 60 // 1 minute intervals for long songs
+        }
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Rectangle()
-                .fill(section.color)
-                .frame(width: blockWidth, height: 30)
-                .overlay(
-                    Text(section.name)
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .fontWeight(.medium)
-                )
-                .cornerRadius(4)
-            
-            Text(formatTime(section.startTime))
-                .font(.caption2)
-                .foregroundColor(.secondary)
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(0..<Int(totalDuration/timeInterval) + 2, id: \.self) { index in
+                let time = TimeInterval(index) * timeInterval
+                
+                if time <= totalDuration {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(formatTime(time))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
+                        
+                        Rectangle()
+                            .fill(index % 2 == 0 ? Color.primary : Color.secondary)
+                            .frame(width: 1, height: index % 2 == 0 ? 8 : 4)
+                    }
+                    
+                    if index < Int(totalDuration/timeInterval) + 1 {
+                        Spacer()
+                    }
+                }
+            }
         }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 4)
     }
     
     private func formatTime(_ time: TimeInterval) -> String {
@@ -232,23 +381,230 @@ struct SectionBlock: View {
     }
 }
 
-struct SongSection {
-    let id = UUID()
-    let name: String
-    let startTime: TimeInterval
-    let endTime: TimeInterval
-    let color: Color
+struct SectionInfoOverlay: View {
+    let section: SongSection
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(section.color)
+                .frame(width: 8, height: 8)
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text(section.name)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                
+                Text("\(formatTime(section.startTime)) - \(formatTime(section.endTime)) (\(formatDuration(section.endTime - section.startTime)))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.controlBackgroundColor))
+                .stroke(section.color.opacity(0.3), lineWidth: 1)
+        )
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        if duration < 60 {
+            return String(format: "%.0fs", duration)
+        } else {
+            let minutes = Int(duration) / 60
+            let seconds = Int(duration) % 60
+            return String(format: "%dm %ds", minutes, seconds)
+        }
+    }
 }
 
-#Preview {
-    TimelineView(
-        audioFile: URL(fileURLWithPath: "/sample.mp3"), 
-        isAnalyzing: .constant(false),
-        sections: .constant([
-            SongSection(name: "Intro", startTime: 0, endTime: 15, color: .blue),
-            SongSection(name: "Verse", startTime: 15, endTime: 45, color: .green)
-        ]),
-        onAnalysisComplete: { _ in }
-    )
-    .frame(width: 400, height: 300)
+struct EnhancedSectionBlock: View {
+    let section: SongSection
+    let totalDuration: TimeInterval
+    let isSelected: Bool
+    let isHovered: Bool
+    
+    private var blockWidth: CGFloat {
+        let sectionDuration = section.endTime - section.startTime
+        let ratio = sectionDuration / totalDuration
+        let minWidth: CGFloat = 40 // Minimum width for readability
+        let maxWidth: CGFloat = 600 // Maximum width for very long sections
+        let calculatedWidth = ratio * 500 // Base timeline width
+        return max(minWidth, min(maxWidth, calculatedWidth))
+    }
+    
+    private var sectionColor: Color {
+        if isSelected {
+            return section.color.opacity(0.9)
+        } else if isHovered {
+            return section.color.opacity(0.8)
+        } else {
+            return section.color.opacity(0.7)
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            // Section block with enhanced styling
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            sectionColor,
+                            sectionColor.opacity(0.8)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: blockWidth, height: isSelected ? 36 : (isHovered ? 34 : 32))
+                .overlay(
+                    // Section name overlay
+                    Text(section.name)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 0.5)
+                        .padding(.horizontal, 6)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                )
+                .overlay(
+                    // Selection/hover border
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(
+                            isSelected ? Color.white : (isHovered ? Color.white.opacity(0.6) : Color.clear),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+                .cornerRadius(4)
+                .shadow(
+                    color: .black.opacity(isSelected ? 0.3 : (isHovered ? 0.2 : 0.1)),
+                    radius: isSelected ? 4 : (isHovered ? 3 : 2),
+                    x: 0,
+                    y: isSelected ? 2 : 1
+                )
+                .scaleEffect(isSelected ? 1.05 : (isHovered ? 1.02 : 1.0))
+            
+            // Timestamp with improved styling
+            Text(formatTime(section.startTime))
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fontWeight(.medium)
+        }
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+struct EnhancedPlaybackControls: View {
+    @Binding var currentTime: TimeInterval
+    let totalDuration: TimeInterval
+    @Binding var isPlaying: Bool
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            // Progress slider with enhanced styling
+            VStack(spacing: 4) {
+                Slider(
+                    value: $currentTime,
+                    in: 0...totalDuration,
+                    onEditingChanged: { editing in
+                        // Handle scrubbing start/end
+                    }
+                )
+                .tint(.accentColor)
+                
+                // Time labels
+                HStack {
+                    Text(formatTime(currentTime))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Text(formatTime(totalDuration))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Control buttons with enhanced styling
+            HStack(spacing: 16) {
+                Button(action: { 
+                    // Skip backward 10 seconds
+                    currentTime = max(0, currentTime - 10)
+                }) {
+                    Image(systemName: "gobackward.10")
+                        .font(.title2)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                
+                Button(action: {
+                    isPlaying.toggle()
+                }) {
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.title)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                
+                Button(action: {
+                    // Skip forward 10 seconds  
+                    currentTime = min(totalDuration, currentTime + 10)
+                }) {
+                    Image(systemName: "goforward.10")
+                        .font(.title2)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                
+                Spacer()
+                
+                // Speed control
+                Menu {
+                    Button("0.5x") { /* Set speed to 0.5x */ }
+                    Button("0.75x") { /* Set speed to 0.75x */ }
+                    Button("1x") { /* Set speed to 1x */ }
+                    Button("1.25x") { /* Set speed to 1.25x */ }
+                    Button("1.5x") { /* Set speed to 1.5x */ }
+                    Button("2x") { /* Set speed to 2x */ }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "speedometer")
+                        Text("1x")
+                    }
+                    .font(.caption)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(.top, 8)
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
 }
