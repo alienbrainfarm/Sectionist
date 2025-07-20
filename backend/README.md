@@ -4,9 +4,11 @@ This is the Python backend for Sectionist, responsible for audio analysis, music
 
 ## Features
 
-- **Song Section Detection**: Automatically segment audio into sections (intro, verse, chorus, etc.)
+- **Song Section Detection**: Automatically segment audio into sections (intro, verse, chorus, etc.) using advanced Music Information Retrieval (MIR) techniques
+- **Intelligent Boundary Detection**: Uses chroma features, energy analysis, and spectral characteristics to identify section changes
+- **Confident Section Labeling**: Provides section labels with confidence scores based on musical characteristics and song position
 - **Key Detection**: Identify the musical key and key changes
-- **Chord Mapping**: Basic chord detection and mapping
+- **Chord Mapping**: Basic chord detection and mapping (planned)
 - **Local Processing**: All analysis happens locally, no cloud uploads required
 
 ## Setup
@@ -51,19 +53,44 @@ This should display usage instructions. To test with an actual audio file:
 python example.py /path/to/your/audio/file.mp3
 ```
 
+### Testing the Segmentation
+
+You can run the included test to validate the song structure segmentation:
+
+```bash  
+python test_segmentation.py
+```
+
+This creates synthetic test audio with known section boundaries and validates the algorithm's accuracy.
+
 ## Usage
 
 ### Basic Audio Analysis
 
-The `example.py` script demonstrates the core functionality:
+The `example.py` script demonstrates the core song structure segmentation functionality:
 
 ```python
 from example import analyze_audio_file
 
 # Analyze an audio file
 results = analyze_audio_file("song.mp3")
-print(results)
+
+# Access segmentation results
+print(f"Song duration: {results['duration']}s")
+print(f"Detected {len(results['sections'])} sections:")
+for section in results['sections']:
+    print(f"  {section['name']}: {section['start']}s-{section['end']}s "
+          f"(confidence: {section['confidence']})")
 ```
+
+### Advanced Segmentation Features
+
+The segmentation algorithm provides:
+- **Intelligent boundary detection** using chroma, energy, and spectral analysis
+- **Confident section labeling** with position-aware heuristics
+- **Confidence scores** for each detected section (0.0-1.0)
+- **Multiple section types**: Intro, Verse, Chorus, Bridge, Outro
+- **Robustness** with fallback to basic sectioning for challenging audio
 
 ### Expected Output Format
 
@@ -76,10 +103,11 @@ The analysis returns a dictionary with the following structure:
     "tempo": 120.0,
     "key": "C major",
     "sections": [
-        {"name": "Intro", "start": 0.0, "end": 45.0},
-        {"name": "Verse", "start": 45.0, "end": 90.0},
-        {"name": "Chorus", "start": 90.0, "end": 135.0},
-        {"name": "Outro", "start": 135.0, "end": 180.5}
+        {"name": "Intro", "start": 0.0, "end": 12.5, "confidence": 0.95},
+        {"name": "Verse 1", "start": 12.5, "end": 32.0, "confidence": 0.87}, 
+        {"name": "Chorus", "start": 32.0, "end": 52.5, "confidence": 0.92},
+        {"name": "Bridge", "start": 52.5, "end": 68.0, "confidence": 0.76},
+        {"name": "Outro", "start": 68.0, "end": 180.5, "confidence": 0.89}
     ],
     "beats_detected": 360
 }
