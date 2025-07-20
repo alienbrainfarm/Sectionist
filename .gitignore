@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcworkspace
+*.xcuserstate
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata
+DerivedData/
+build/
+
+# SwiftPM
+/.build
+/Packages
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+.env.*
+
+# Logs
+*.log
+
+# Misc
+*.swp
