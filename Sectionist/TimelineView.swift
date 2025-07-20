@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Enhanced timeline view for displaying song sections with interactive features
+/// 
+/// Features:
+/// - Interactive section selection and hover effects
+/// - Dynamic time rulers based on song duration
+/// - Click-to-seek functionality
+/// - Responsive section blocks with gradients and animations
+/// - Enhanced playback controls with skip and speed options
+/// - Accessibility support with proper labels and hints
 struct TimelineView: View {
     let audioFile: URL
     @Binding var isAnalyzing: Bool
@@ -216,6 +225,9 @@ struct TimelineView: View {
                                     hoveredSection = hovering ? section : nil
                                 }
                             }
+                            .accessibilityLabel("\(section.name) section")
+                            .accessibilityHint("Duration: \(section.formattedDuration). Double tap to seek to \(formatTime(section.startTime))")
+                            .accessibilityAddTraits(selectedSection?.id == section.id ? [.isSelected] : [])
                         }
                     }
                     .padding(.horizontal, 8)
@@ -233,6 +245,8 @@ struct TimelineView: View {
                 totalDuration: totalDuration,
                 isPlaying: .constant(false)
             )
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Timeline playback controls")
         }
         .padding()
         .background(
@@ -284,6 +298,10 @@ struct TimelineView: View {
     }
 }
 
+/// Song section data model with enhanced functionality
+/// 
+/// Provides helper methods for duration calculation and formatting
+/// Includes computed properties for better UI integration
 struct SongSection {
     let id = UUID()
     let name: String
@@ -333,6 +351,11 @@ struct SongSection {
 
 // MARK: - Enhanced Timeline Components
 
+/// Dynamic time ruler that adapts interval spacing based on song duration
+/// 
+/// - For songs ≤ 60 seconds: 10-second intervals
+/// - For songs ≤ 300 seconds: 30-second intervals  
+/// - For songs > 300 seconds: 60-second intervals
 struct TimeRuler: View {
     let totalDuration: TimeInterval
     
@@ -381,6 +404,8 @@ struct TimeRuler: View {
     }
 }
 
+/// Information overlay that displays detailed section information
+/// Shows section name, time range, and duration in a styled container
 struct SectionInfoOverlay: View {
     let section: SongSection
     
@@ -428,6 +453,14 @@ struct SectionInfoOverlay: View {
     }
 }
 
+/// Enhanced section block with interactive states and visual effects
+///
+/// Features:
+/// - Gradient fills for better visual appeal
+/// - Interactive hover and selection states
+/// - Dynamic sizing based on section duration
+/// - Smooth animations and transitions
+/// - Accessibility support
 struct EnhancedSectionBlock: View {
     let section: SongSection
     let totalDuration: TimeInterval
@@ -513,6 +546,14 @@ struct EnhancedSectionBlock: View {
     }
 }
 
+/// Full-featured playback controls with skip and speed functionality
+///
+/// Features:
+/// - Skip backward/forward 10 seconds
+/// - Play/pause button with state indication
+/// - Scrubbing slider with accent color theming
+/// - Speed control menu (0.5x to 2x)
+/// - Time display for current and total duration
 struct EnhancedPlaybackControls: View {
     @Binding var currentTime: TimeInterval
     let totalDuration: TimeInterval
