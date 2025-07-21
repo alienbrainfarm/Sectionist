@@ -234,15 +234,16 @@ def label_sections_frame_based(
 def detect_key_and_changes(y, sr, chroma=None):
     """
     Detect the key and key changes throughout an audio file.
-    
+
     This function implements enhanced key detection using the Krumhansl-Schmuckler
-    key-finding algorithm with comprehensive key profiles for all 24 major and minor keys.
-    
+    key-finding algorithm with comprehensive key profiles for all 24 major and
+    minor keys.
+
     Args:
         y (np.array): Audio time series
         sr (int): Sample rate
         chroma (np.array, optional): Pre-computed chroma features
-        
+
     Returns:
         tuple: (detected_key, key_changes)
             - detected_key (str): Overall key of the song
@@ -251,36 +252,42 @@ def detect_key_and_changes(y, sr, chroma=None):
     # Compute chroma features if not provided
     if chroma is None:
         chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-    
+
     # Krumhansl-Schmuckler key profiles (24 keys: 12 major + 12 minor)
     # Major key profiles based on probe tone experiments
-    major_profile = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
-    
-    # Minor key profiles based on probe tone experiments  
-    minor_profile = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
-    
+    major_profile = np.array(
+        [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+    )
+
+    # Minor key profiles based on probe tone experiments
+    minor_profile = np.array(
+        [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+    )
+
     # Generate all 24 key profiles by rotating the base profiles
     key_profiles = []
     key_names = []
-    
+
     # Major keys
-    note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     for i in range(12):
         key_profiles.append(np.roll(major_profile, i))
         key_names.append(f"{note_names[i]} major")
-    
+
     # Minor keys
     for i in range(12):
         key_profiles.append(np.roll(minor_profile, i))
         key_names.append(f"{note_names[i]} minor")
-    
+
     key_profiles = np.array(key_profiles)
-    
+
     # Detect overall key using entire chroma
     chroma_mean = np.mean(chroma, axis=1)
     # Normalize chroma vector
-    chroma_mean = chroma_mean / np.sum(chroma_mean) if np.sum(chroma_mean) > 0 else chroma_mean
-    
+    chroma_mean = (
+        chroma_mean / np.sum(chroma_mean) if np.sum(chroma_mean) > 0 else chroma_mean
+    )
+
     # Calculate correlation with each key profile
     key_scores = []
     for profile in key_profiles:
@@ -289,26 +296,26 @@ def detect_key_and_changes(y, sr, chroma=None):
         # Calculate Pearson correlation coefficient
         correlation = np.corrcoef(chroma_mean, profile_norm)[0, 1]
         key_scores.append(correlation if not np.isnan(correlation) else 0)
-    
+
     overall_key_idx = np.argmax(key_scores)
     detected_key = key_names[overall_key_idx]
-    
+
     # Detect key changes by analyzing segments
     key_changes = detect_key_changes_in_segments(chroma, key_profiles, key_names, sr)
-    
+
     return detected_key, key_changes
 
 
 def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr):
     """
     Detect key changes by analyzing audio in segments.
-    
+
     Args:
         chroma (np.array): Chroma features
         key_profiles (np.array): All 24 key profiles
         key_names (list): Names of all keys
         sr (int): Sample rate
-        
+
     Returns:
         list: List of key changes with timestamps
     """
@@ -317,180 +324,201 @@ def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr):
     frames_per_second = sr / hop_length
     segment_duration_seconds = 10.0
     segment_size = int(segment_duration_seconds * frames_per_second)
-    
+
     if chroma.shape[1] < segment_size * 2:  # Need at least 2 segments
         return []
-    
+
     key_changes = []
     previous_key = None
-    
+
     # Analyze segments
     for start_frame in range(0, chroma.shape[1] - segment_size, segment_size // 2):
         end_frame = min(start_frame + segment_size, chroma.shape[1])
         segment_chroma = chroma[:, start_frame:end_frame]
-        
+
         # Calculate mean chroma for this segment
         segment_chroma_mean = np.mean(segment_chroma, axis=1)
-        segment_chroma_mean = (segment_chroma_mean / np.sum(segment_chroma_mean) 
-                              if np.sum(segment_chroma_mean) > 0 else segment_chroma_mean)
-        
+        segment_chroma_mean = (
+            segment_chroma_mean / np.sum(segment_chroma_mean)
+            if np.sum(segment_chroma_mean) > 0
+            else segment_chroma_mean
+        )
+
         # Find best matching key for this segment
         segment_key_scores = []
         for profile in key_profiles:
             profile_norm = profile / np.sum(profile)
             correlation = np.corrcoef(segment_chroma_mean, profile_norm)[0, 1]
             segment_key_scores.append(correlation if not np.isnan(correlation) else 0)
-        
+
         segment_key_idx = np.argmax(segment_key_scores)
         segment_key = key_names[segment_key_idx]
-        
+
         # Check for key change
         if previous_key is not None and segment_key != previous_key:
             # Only report significant key changes (confidence threshold)
             confidence = segment_key_scores[segment_key_idx]
             if confidence > 0.3:  # Threshold for confident key detection
                 timestamp = start_frame * hop_length / sr
-                key_changes.append({
-                    "timestamp": round(float(timestamp), 2),
-                    "from_key": previous_key,
-                    "to_key": segment_key,
-                    "confidence": round(float(confidence), 2)
-                })
-        
+                key_changes.append(
+                    {
+                        "timestamp": round(float(timestamp), 2),
+                        "from_key": previous_key,
+                        "to_key": segment_key,
+                        "confidence": round(float(confidence), 2),
+                    }
+                )
+
         previous_key = segment_key
-    
+
     return key_changes
 
 
 def detect_chords(y, sr, hop_length=2048):
     """
     Detect basic chord progressions throughout an audio file.
-    
+
     This function uses chroma features to identify major and minor chords
     by comparing the harmonic content to known chord templates.
-    
+
     Args:
         y (np.array): Audio time series
         sr (int): Sample rate
         hop_length (int): Hop length for feature extraction
-        
+
     Returns:
         list: List of chord progressions with timestamps
             Each chord contains:
             - name: Chord name (e.g., "C major", "Am", "F")
             - start: Start time in seconds
-            - end: End time in seconds  
+            - end: End time in seconds
             - confidence: Detection confidence (0-1)
     """
     # Extract chroma features
     chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
-    
+
     # Define chord templates for major and minor chords
-    # Each template is a 12-element vector representing chroma bins (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
+    # Each template is a 12-element vector representing chroma bins
+    # (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
     chord_templates = {
         # Major chords
-        'C': np.array([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0]),
-        'C#': np.array([0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0]),
-        'D': np.array([0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0]),
-        'D#': np.array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]),
-        'E': np.array([0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1]),
-        'F': np.array([1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0]),
-        'F#': np.array([0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0]),
-        'G': np.array([0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1]),
-        'G#': np.array([1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0]),
-        'A': np.array([0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]),
-        'A#': np.array([0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
-        'B': np.array([0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1]),
-        
-        # Minor chords  
-        'Cm': np.array([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0]),
-        'C#m': np.array([0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]),
-        'Dm': np.array([0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0]),
-        'D#m': np.array([0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0]),
-        'Em': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1]),
-        'Fm': np.array([1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0]),
-        'F#m': np.array([0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0]),
-        'Gm': np.array([0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0]),
-        'G#m': np.array([0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1]),
-        'Am': np.array([1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]),
-        'A#m': np.array([0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
-        'Bm': np.array([0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+        "C": np.array([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0]),
+        "C#": np.array([0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0]),
+        "D": np.array([0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0]),
+        "D#": np.array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]),
+        "E": np.array([0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1]),
+        "F": np.array([1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0]),
+        "F#": np.array([0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0]),
+        "G": np.array([0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1]),
+        "G#": np.array([1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0]),
+        "A": np.array([0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]),
+        "A#": np.array([0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
+        "B": np.array([0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1]),
+        # Minor chords
+        "Cm": np.array([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0]),
+        "C#m": np.array([0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]),
+        "Dm": np.array([0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0]),
+        "D#m": np.array([0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0]),
+        "Em": np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1]),
+        "Fm": np.array([1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0]),
+        "F#m": np.array([0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0]),
+        "Gm": np.array([0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0]),
+        "G#m": np.array([0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1]),
+        "Am": np.array([1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]),
+        "A#m": np.array([0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
+        "Bm": np.array([0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
     }
-    
+
     # Calculate time frames
     frame_times = librosa.frames_to_time(
         np.arange(chroma.shape[1]), sr=sr, hop_length=hop_length
     )
-    
+
     # Analyze chords in segments (every 2 seconds)
     segment_duration = 2.0  # seconds
     frames_per_segment = int(segment_duration * sr / hop_length)
-    
+
     detected_chords = []
-    
-    for start_frame in range(0, chroma.shape[1] - frames_per_segment, frames_per_segment):
+
+    for start_frame in range(
+        0, chroma.shape[1] - frames_per_segment, frames_per_segment
+    ):
         end_frame = min(start_frame + frames_per_segment, chroma.shape[1])
         segment_chroma = chroma[:, start_frame:end_frame]
-        
+
         # Calculate mean chroma for this segment
         mean_chroma = np.mean(segment_chroma, axis=1)
-        
+
         # Normalize chroma vector
         if np.sum(mean_chroma) > 0:
             mean_chroma = mean_chroma / np.sum(mean_chroma)
-        
+
         # Find best matching chord
-        best_chord = 'N'  # No chord detected
+        best_chord = "N"  # No chord detected
         best_score = 0
-        
+
         for chord_name, template in chord_templates.items():
             # Calculate cosine similarity between mean_chroma and template
             # Normalize vectors
             chroma_norm = np.linalg.norm(mean_chroma)
             template_norm_val = np.linalg.norm(template)
-            
+
             if chroma_norm > 0 and template_norm_val > 0:
                 # Cosine similarity
-                score = np.dot(mean_chroma, template) / (chroma_norm * template_norm_val)
+                score = np.dot(mean_chroma, template) / (
+                    chroma_norm * template_norm_val
+                )
             else:
                 score = 0
-            
+
             if score > best_score:
                 best_score = score
                 best_chord = chord_name
-        
+
         # Only include chord if confidence is above threshold
         confidence_threshold = 0.3  # Lowered from 0.5 for better detection
         if best_score > confidence_threshold:
-            start_time = frame_times[start_frame] if start_frame < len(frame_times) else frame_times[-1]
-            end_time = frame_times[end_frame - 1] if end_frame - 1 < len(frame_times) else frame_times[-1]
-            
-            detected_chords.append({
-                'name': best_chord,
-                'start': round(float(start_time), 2),
-                'end': round(float(end_time), 2),
-                'confidence': round(float(best_score), 2)
-            })
-    
+            start_time = (
+                frame_times[start_frame]
+                if start_frame < len(frame_times)
+                else frame_times[-1]
+            )
+            end_time = (
+                frame_times[end_frame - 1]
+                if end_frame - 1 < len(frame_times)
+                else frame_times[-1]
+            )
+
+            detected_chords.append(
+                {
+                    "name": best_chord,
+                    "start": round(float(start_time), 2),
+                    "end": round(float(end_time), 2),
+                    "confidence": round(float(best_score), 2),
+                }
+            )
+
     # Post-process to merge consecutive identical chords
     if detected_chords:
         merged_chords = [detected_chords[0]]
-        
+
         for chord in detected_chords[1:]:
             last_chord = merged_chords[-1]
             # If same chord and consecutive time segments, merge them
-            if (chord['name'] == last_chord['name'] and 
-                abs(chord['start'] - last_chord['end']) < 0.5):  # Allow small gap
-                merged_chords[-1]['end'] = chord['end']
+            if (
+                chord["name"] == last_chord["name"]
+                and abs(chord["start"] - last_chord["end"]) < 0.5
+            ):  # Allow small gap
+                merged_chords[-1]["end"] = chord["end"]
                 # Update confidence to average
-                merged_chords[-1]['confidence'] = round(
-                    (last_chord['confidence'] + chord['confidence']) / 2, 2
+                merged_chords[-1]["confidence"] = round(
+                    (last_chord["confidence"] + chord["confidence"]) / 2, 2
                 )
             else:
                 merged_chords.append(chord)
-        
+
         return merged_chords
-    
+
     return []
 
 
@@ -548,7 +576,7 @@ def analyze_audio_file(file_path):
 
     # Advanced song structure segmentation using music information retrieval
     sections = analyze_song_structure(y, sr)
-    
+
     # Chord detection and mapping
     chords = detect_chords(y, sr)
 
@@ -594,18 +622,26 @@ def main():
         print("\n🎼 Detected Sections:")
         for section in results["sections"]:
             print(f"  {section['name']}: {section['start']}s - {section['end']}s")
-            
+
         if results["key_changes"]:
             print("\n🔄 Key Changes:")
             for change in results["key_changes"]:
-                print(f"  {change['timestamp']}s: {change['from_key']} → {change['to_key']} (confidence: {change['confidence']})")
+                timestamp = change["timestamp"]
+                from_key = change["from_key"]
+                to_key = change["to_key"]
+                confidence = change["confidence"]
+                print(f"  {timestamp}s: {from_key} → {to_key} (conf: {confidence})")
         else:
             print("\n🔄 Key Changes: None detected")
-            
+
         if results["chords"]:
             print("\n🎸 Chord Progression:")
             for chord in results["chords"]:
-                print(f"  {chord['name']}: {chord['start']}s - {chord['end']}s (confidence: {chord['confidence']})")
+                name = chord["name"]
+                start = chord["start"]
+                end = chord["end"]
+                confidence = chord["confidence"]
+                print(f"  {name}: {start}s - {end}s (confidence: {confidence})")
         else:
             print("\n🎸 Chord Progression: None detected")
 

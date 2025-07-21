@@ -86,12 +86,19 @@ def test_analyze_success(mock_analyze, client):
         "duration": 30.0,
         "tempo": 120.0,
         "key": "C major",
-        "key_changes": [{"timestamp": 15.0, "from_key": "C major", "to_key": "G major", "confidence": 0.8}],
+        "key_changes": [
+            {
+                "timestamp": 15.0,
+                "from_key": "C major",
+                "to_key": "G major",
+                "confidence": 0.8,
+            }
+        ],
         "sections": [{"name": "Intro", "start": 0.0, "end": 5.0, "confidence": 0.9}],
         "beats_detected": 60,
         "chords": [
             {"name": "C", "start": 0.0, "end": 4.0, "confidence": 0.85},
-            {"name": "F", "start": 4.0, "end": 8.0, "confidence": 0.82}
+            {"name": "F", "start": 4.0, "end": 8.0, "confidence": 0.82},
         ],
     }
 
@@ -130,12 +137,12 @@ def test_analyze_success(mock_analyze, client):
             assert isinstance(analysis["key_changes"], list)
             assert len(analysis["sections"]) == 1
             assert analysis["beats_detected"] == 60
-            
+
             # Test chord information
             assert "chords" in analysis
             assert isinstance(analysis["chords"], list)
             assert len(analysis["chords"]) == 2
-            
+
             # Verify chord structure
             chord = analysis["chords"][0]
             assert chord["name"] == "C"
