@@ -15,6 +15,7 @@
 		3D1A2A6A2C4C5FA500123456 /* AnalysisResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A692C4C5FA500123456 /* AnalysisResultsView.swift */; };
 		3D1A2A6C2C4C5FB000123456 /* AnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A6B2C4C5FB000123456 /* AnalysisService.swift */; };
 		3D1A2A6D2C4C5FC000123456 /* SectionEditingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A6E2C4C5FC000123456 /* SectionEditingView.swift */; };
+		3D1A2A6F2C4C5FD000123456 /* AudioPlayerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A702C4C5FD000123456 /* AudioPlayerService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 		3D1A2A692C4C5FA500123456 /* AnalysisResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisResultsView.swift; sourceTree = "<group>"; };
 		3D1A2A6B2C4C5FB000123456 /* AnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisService.swift; sourceTree = "<group>"; };
 		3D1A2A6E2C4C5FC000123456 /* SectionEditingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionEditingView.swift; sourceTree = "<group>"; };
+		3D1A2A702C4C5FD000123456 /* AudioPlayerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +68,7 @@
 				3D1A2A6E2C4C5FC000123456 /* SectionEditingView.swift */,
 				3D1A2A692C4C5FA500123456 /* AnalysisResultsView.swift */,
 				3D1A2A6B2C4C5FB000123456 /* AnalysisService.swift */,
+				3D1A2A702C4C5FD000123456 /* AudioPlayerService.swift */,
 				3D1A2A5D2C4C5F8B00123456 /* Assets.xcassets */,
 				3D1A2A622C4C5F8B00123456 /* Sectionist.entitlements */,
 				3D1A2A5F2C4C5F8B00123456 /* Preview Content */,
@@ -156,6 +159,7 @@
 				3D1A2A6D2C4C5FC000123456 /* SectionEditingView.swift in Sources */,
 				3D1A2A6A2C4C5FA500123456 /* AnalysisResultsView.swift in Sources */,
 				3D1A2A6C2C4C5FB000123456 /* AnalysisService.swift in Sources */,
+				3D1A2A6F2C4C5FD000123456 /* AudioPlayerService.swift in Sources */,
 				3D1A2A5A2C4C5F8A00123456 /* SectionistApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
