@@ -80,6 +80,11 @@ struct TimelineView: View {
             // Load the audio file into the player when the view appears
             audioPlayer.loadAudio(from: audioFile)
         }
+        .onChange(of: audioFile) { _, newFile in
+            // Automatically start analysis when a new file is loaded
+            audioPlayer.loadAudio(from: newFile)
+            startAnalysis()
+        }
         .alert("Analysis Error", isPresented: $showingError) {
             Button("OK") { }
         } message: {
