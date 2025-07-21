@@ -231,6 +231,137 @@ def label_sections_frame_based(
     return sections
 
 
+def detect_key_and_changes(y, sr, chroma=None):
+    """
+    Detect the key and key changes throughout an audio file.
+    
+    This function implements enhanced key detection using the Krumhansl-Schmuckler
+    key-finding algorithm with comprehensive key profiles for all 24 major and minor keys.
+    
+    Args:
+        y (np.array): Audio time series
+        sr (int): Sample rate
+        chroma (np.array, optional): Pre-computed chroma features
+        
+    Returns:
+        tuple: (detected_key, key_changes)
+            - detected_key (str): Overall key of the song
+            - key_changes (list): List of key changes with timestamps
+    """
+    # Compute chroma features if not provided
+    if chroma is None:
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+    
+    # Krumhansl-Schmuckler key profiles (24 keys: 12 major + 12 minor)
+    # Major key profiles based on probe tone experiments
+    major_profile = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
+    
+    # Minor key profiles based on probe tone experiments  
+    minor_profile = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+    
+    # Generate all 24 key profiles by rotating the base profiles
+    key_profiles = []
+    key_names = []
+    
+    # Major keys
+    note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    for i in range(12):
+        key_profiles.append(np.roll(major_profile, i))
+        key_names.append(f"{note_names[i]} major")
+    
+    # Minor keys
+    for i in range(12):
+        key_profiles.append(np.roll(minor_profile, i))
+        key_names.append(f"{note_names[i]} minor")
+    
+    key_profiles = np.array(key_profiles)
+    
+    # Detect overall key using entire chroma
+    chroma_mean = np.mean(chroma, axis=1)
+    # Normalize chroma vector
+    chroma_mean = chroma_mean / np.sum(chroma_mean) if np.sum(chroma_mean) > 0 else chroma_mean
+    
+    # Calculate correlation with each key profile
+    key_scores = []
+    for profile in key_profiles:
+        # Normalize key profile
+        profile_norm = profile / np.sum(profile)
+        # Calculate Pearson correlation coefficient
+        correlation = np.corrcoef(chroma_mean, profile_norm)[0, 1]
+        key_scores.append(correlation if not np.isnan(correlation) else 0)
+    
+    overall_key_idx = np.argmax(key_scores)
+    detected_key = key_names[overall_key_idx]
+    
+    # Detect key changes by analyzing segments
+    key_changes = detect_key_changes_in_segments(chroma, key_profiles, key_names, sr)
+    
+    return detected_key, key_changes
+
+
+def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr):
+    """
+    Detect key changes by analyzing audio in segments.
+    
+    Args:
+        chroma (np.array): Chroma features
+        key_profiles (np.array): All 24 key profiles
+        key_names (list): Names of all keys
+        sr (int): Sample rate
+        
+    Returns:
+        list: List of key changes with timestamps
+    """
+    # Calculate segment duration (~10 seconds per segment)
+    hop_length = 2048  # Standard hop length used in chroma calculation
+    frames_per_second = sr / hop_length
+    segment_duration_seconds = 10.0
+    segment_size = int(segment_duration_seconds * frames_per_second)
+    
+    if chroma.shape[1] < segment_size * 2:  # Need at least 2 segments
+        return []
+    
+    key_changes = []
+    previous_key = None
+    
+    # Analyze segments
+    for start_frame in range(0, chroma.shape[1] - segment_size, segment_size // 2):
+        end_frame = min(start_frame + segment_size, chroma.shape[1])
+        segment_chroma = chroma[:, start_frame:end_frame]
+        
+        # Calculate mean chroma for this segment
+        segment_chroma_mean = np.mean(segment_chroma, axis=1)
+        segment_chroma_mean = (segment_chroma_mean / np.sum(segment_chroma_mean) 
+                              if np.sum(segment_chroma_mean) > 0 else segment_chroma_mean)
+        
+        # Find best matching key for this segment
+        segment_key_scores = []
+        for profile in key_profiles:
+            profile_norm = profile / np.sum(profile)
+            correlation = np.corrcoef(segment_chroma_mean, profile_norm)[0, 1]
+            segment_key_scores.append(correlation if not np.isnan(correlation) else 0)
+        
+        segment_key_idx = np.argmax(segment_key_scores)
+        segment_key = key_names[segment_key_idx]
+        
+        # Check for key change
+        if previous_key is not None and segment_key != previous_key:
+            # Only report significant key changes (confidence threshold)
+            confidence = segment_key_scores[segment_key_idx]
+            if confidence > 0.3:  # Threshold for confident key detection
+                timestamp = start_frame * hop_length / sr
+                key_changes.append({
+                    "timestamp": round(float(timestamp), 2),
+                    "from_key": previous_key,
+                    "to_key": segment_key,
+                    "confidence": round(float(confidence), 2)
+                })
+        
+        previous_key = segment_key
+    
+    return key_changes
+
+
 def analyze_audio_file(file_path):
     """
     Analyze an audio file and extract musical information including intelligent
@@ -272,20 +403,9 @@ def analyze_audio_file(file_path):
     # Basic tempo estimation
     tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
 
-    # Simple key estimation using chroma features
+    # Enhanced key estimation using chroma features
     chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-    key_profiles = np.array(
-        [
-            [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1],  # C major
-            [1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0],  # G major
-            # Add more key profiles as needed
-        ]
-    )
-
-    # Very basic key detection (just for demonstration)
-    chroma_mean = np.mean(chroma, axis=1)
-    key_scores = np.dot(key_profiles, chroma_mean)
-    detected_key = ["C major", "G major"][np.argmax(key_scores)]
+    detected_key, key_changes = detect_key_and_changes(y, sr, chroma)
 
     # Advanced song structure segmentation using music information retrieval
     sections = analyze_song_structure(y, sr)
@@ -297,6 +417,7 @@ def analyze_audio_file(file_path):
             float(tempo.item()) if hasattr(tempo, "item") else float(tempo), 1
         ),
         "key": detected_key,
+        "key_changes": key_changes,
         "sections": sections,
         "beats_detected": len(beats),
     }

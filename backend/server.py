@@ -94,6 +94,7 @@ def analyze_audio():
                     "duration": results["duration"],
                     "tempo": results["tempo"],
                     "key": results["key"],
+                    "key_changes": results["key_changes"],
                     "sections": results["sections"],
                     "beats_detected": results["beats_detected"],
                 },
