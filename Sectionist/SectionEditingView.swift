@@ -74,7 +74,7 @@ struct SectionEditingView: View {
                 showingAddSection = true
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.small)
+            
         }
     }
     
@@ -154,13 +154,13 @@ struct SectionEditingView: View {
                 sortSectionsByTime()
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            
             
             Button("Merge Overlaps") {
                 mergeOverlappingSections()
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            
             
             Spacer()
             
@@ -169,7 +169,7 @@ struct SectionEditingView: View {
                 // This would require storing original data
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            
             .foregroundColor(.orange)
         }
     }
@@ -337,26 +337,26 @@ struct EditableSectionRow: View {
                         onFinishEdit(editingName)
                     }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.mini)
+                    
                     
                     Button("Cancel") {
                         onFinishEdit(section.name) // Revert to original name
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.mini)
+                    
                 } else {
                     Button("Edit") {
                         onStartEdit(section)
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.mini)
+                    
                 }
                 
                 Button("Delete") {
                     onDelete(section)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.mini)
+                
                 .foregroundColor(.red)
             }
         }
@@ -399,7 +399,12 @@ struct TimeField: View {
     @State private var isEditing = false
     
     var body: some View {
-        TextField("0:00", text: $timeText)
+        TextField("0:00", text: $timeText, onEditingChanged: { editing in
+            isEditing = editing
+            if !editing {
+                parseAndUpdate()
+            }
+        })
             .textFieldStyle(.roundedBorder)
             .frame(width: 60)
             .font(.caption)
@@ -410,12 +415,6 @@ struct TimeField: View {
             .onChange(of: time) { _, _ in
                 if !isEditing {
                     updateTimeText()
-                }
-            }
-            .onEditingChanged { editing in
-                isEditing = editing
-                if !editing {
-                    parseAndUpdate()
                 }
             }
             .onSubmit {
@@ -512,7 +511,7 @@ struct AddSectionBetweenView: View {
                     Text("Add section")
                         .font(.caption2)
                 }
-                .foregroundColor(.accentColor)
+                .foregroundColor(Color.accentColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
@@ -638,7 +637,7 @@ struct TimeSlider: View {
     var body: some View {
         VStack(spacing: 4) {
             Slider(value: $value, in: range, step: step)
-                .tint(.accentColor)
+                .tint(Color.accentColor)
             
             Text(formatTime(value))
                 .font(.caption)

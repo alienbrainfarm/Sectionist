@@ -51,17 +51,14 @@ struct TimelineView: View {
                             showingSectionEditor = true
                         }
                         .buttonStyle(.bordered)
-                        .controlSize(.small)
                         
                         Toggle("Edit Mode", isOn: $isEditingMode)
                             .toggleStyle(.switch)
-                            .controlSize(.mini)
                         
                         Button("Re-analyze") {
                             startAnalysis()
                         }
                         .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
                 }
             }
@@ -115,52 +112,13 @@ struct TimelineView: View {
     private func AnalyzingPlaceholder() -> some View {
         VStack(spacing: 20) {
             // Animated progress indicator
-            HStack(spacing: 8) {
-                ForEach(0..<3) { index in
-                    Circle()
-                        .fill(.accentColor)
-                        .frame(width: 8, height: 8)
-                        .scaleEffect(isAnalyzing ? 1.2 : 0.8)
-                        .animation(
-                            .easeInOut(duration: 0.6)
-                            .repeatForever()
-                            .delay(Double(index) * 0.2),
-                            value: isAnalyzing
-                        )
-                }
-            }
+            AnimatedProgressIndicator()
             
-            VStack(spacing: 8) {
-                Text("Analyzing audio structure...")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                
-                Text("Detecting sections, tempo, and key signature")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            AnalyzingStatusText()
             
             // Mock progress sections appearing
-            HStack(spacing: 4) {
-                ForEach(0..<5) { index in
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(.secondary.opacity(0.3))
-                        .frame(width: 40, height: 20)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(.accentColor.opacity(0.6))
-                                .scaleEffect(x: index < 3 ? 1.0 : 0.0, anchor: .leading)
-                                .animation(
-                                    .easeInOut(duration: 0.8)
-                                    .delay(Double(index) * 0.3)
-                                    .repeatForever(),
-                                    value: isAnalyzing
-                                )
-                        )
-                }
-            }
-            .padding(.top, 8)
+            MockProgressSections()
+                .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, minHeight: 200)
         .padding()
@@ -174,11 +132,73 @@ struct TimelineView: View {
     }
     
     @ViewBuilder
+    private func AnimatedProgressIndicator() -> some View {
+        HStack(spacing: 8) {
+            ForEach(0..<3) { index in
+                AnimatedDot(index: index, isAnalyzing: isAnalyzing)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func AnimatedDot(index: Int, isAnalyzing: Bool) -> some View {
+        let animation = Animation.easeInOut(duration: 0.6)
+            .repeatForever()
+            .delay(Double(index) * 0.2)
+        
+        Circle()
+            .fill(Color.accentColor)
+            .frame(width: 8, height: 8)
+            .scaleEffect(isAnalyzing ? 1.2 : 0.8)
+            .animation(animation, value: isAnalyzing)
+    }
+    
+    @ViewBuilder
+    private func AnalyzingStatusText() -> some View {
+        VStack(spacing: 8) {
+            Text("Analyzing audio structure...")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            Text("Detecting sections, tempo, and key signature")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+    
+    @ViewBuilder
+    private func MockProgressSections() -> some View {
+        HStack(spacing: 4) {
+            ForEach(0..<5) { index in
+                MockProgressSection(index: index, isAnalyzing: isAnalyzing)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func MockProgressSection(index: Int, isAnalyzing: Bool) -> some View {
+        let animation = Animation.easeInOut(duration: 0.8)
+            .delay(Double(index) * 0.3)
+            .repeatForever()
+        
+        let progressOverlay = RoundedRectangle(cornerRadius: 3)
+            .fill(Color.accentColor.opacity(0.6))
+            .scaleEffect(x: index < 3 ? 1.0 : 0.0, anchor: .leading)
+            .animation(animation, value: isAnalyzing)
+        
+        RoundedRectangle(cornerRadius: 3)
+            .fill(.secondary.opacity(0.3))
+            .frame(width: 40, height: 20)
+            .overlay(progressOverlay)
+    }
+    
+    @ViewBuilder
     private func EmptyTimelineView() -> some View {
         VStack(spacing: 20) {
             Image(systemName: "waveform.path")
                 .font(.system(size: 48))
-                .foregroundColor(.accentColor.opacity(0.6))
+                .foregroundColor(Color.accentColor.opacity(0.6))
             
             VStack(spacing: 8) {
                 Text("Ready to analyze")
@@ -196,7 +216,6 @@ struct TimelineView: View {
                 startAnalysis()
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.large)
             .disabled(isAnalyzing)
         }
         .frame(maxWidth: .infinity, minHeight: 200)
@@ -248,30 +267,7 @@ struct TimelineView: View {
                                 }
                             }
                             .contextMenu {
-                                if isEditingMode {
-                                    Button("Edit Section") {
-                                        selectedSection = section
-                                        showingSectionEditor = true
-                                    }
-                                    
-                                    Button("Duplicate Section") {
-                                        duplicateSection(section)
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    Button("Delete Section", role: .destructive) {
-                                        deleteSection(section)
-                                    }
-                                } else {
-                                    Button("Seek to Start") {
-                                        currentTime = section.startTime
-                                    }
-                                    
-                                    Button("Select Section") {
-                                        selectedSection = section
-                                    }
-                                }
+                                SectionContextMenu(section: section)
                             }
                             .accessibilityLabel("\(section.name) section")
                             .accessibilityHint("Duration: \(section.formattedDuration). Double tap to seek to \(formatTime(section.startTime))")
@@ -302,6 +298,34 @@ struct TimelineView: View {
                 .fill(Color(.controlBackgroundColor))
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         )
+    }
+    
+    @ViewBuilder
+    private func SectionContextMenu(section: SongSection) -> some View {
+        if isEditingMode {
+            Button("Edit Section") {
+                selectedSection = section
+                showingSectionEditor = true
+            }
+            
+            Button("Duplicate Section") {
+                duplicateSection(section)
+            }
+            
+            Divider()
+            
+            Button("Delete Section") {
+                deleteSection(section)
+            }
+        } else {
+            Button("Seek to Start") {
+                currentTime = section.startTime
+            }
+            
+            Button("Select Section") {
+                selectedSection = section
+            }
+        }
     }
     
     private func startAnalysis() {
@@ -476,9 +500,13 @@ struct TimeRuler: View {
         }
     }
     
+    private var timeMarkCount: Int {
+        return Int(totalDuration/timeInterval) + 2
+    }
+    
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            ForEach(0..<Int(totalDuration/timeInterval) + 2, id: \.self) { index in
+            ForEach(0..<timeMarkCount, id: \.self) { index in
                 let time = TimeInterval(index) * timeInterval
                 
                 if time <= totalDuration {
@@ -493,7 +521,7 @@ struct TimeRuler: View {
                             .frame(width: 1, height: index % 2 == 0 ? 8 : 4)
                     }
                     
-                    if index < Int(totalDuration/timeInterval) + 1 {
+                    if index < timeMarkCount - 1 {
                         Spacer()
                     }
                 }
@@ -584,6 +612,44 @@ struct EnhancedSectionBlock: View {
         return max(minWidth, min(maxWidth, calculatedWidth))
     }
     
+    private var blockHeight: CGFloat {
+        if isSelected {
+            return 36
+        } else if isHovered {
+            return 34
+        } else {
+            return 32
+        }
+    }
+    
+    private var borderColor: Color {
+        if isEditingMode {
+            if isSelected {
+                return Color.white
+            } else if isHovered {
+                return Color.white.opacity(0.6)
+            } else {
+                return Color.white.opacity(0.3)
+            }
+        } else {
+            if isSelected {
+                return Color.white
+            } else if isHovered {
+                return Color.white.opacity(0.6)
+            } else {
+                return Color.clear
+            }
+        }
+    }
+    
+    private var borderLineWidth: CGFloat {
+        if isEditingMode {
+            return isSelected ? 3 : 2
+        } else {
+            return isSelected ? 2 : 1
+        }
+    }
+    
     private var sectionColor: Color {
         if isSelected {
             return section.color.opacity(0.9)
@@ -608,7 +674,7 @@ struct EnhancedSectionBlock: View {
                         endPoint: .bottom
                     )
                 )
-                .frame(width: blockWidth, height: isSelected ? 36 : (isHovered ? 34 : 32))
+                .frame(width: blockWidth, height: blockHeight)
                 .overlay(
                     // Section name overlay with edit indicator
                     HStack(spacing: 4) {
@@ -631,12 +697,7 @@ struct EnhancedSectionBlock: View {
                 .overlay(
                     // Selection/hover border with editing mode enhancements
                     RoundedRectangle(cornerRadius: 4)
-                        .stroke(
-                            isEditingMode ? 
-                                (isSelected ? Color.white : (isHovered ? Color.white.opacity(0.6) : Color.white.opacity(0.3))) :
-                                (isSelected ? Color.white : (isHovered ? Color.white.opacity(0.6) : Color.clear)),
-                            lineWidth: isEditingMode ? (isSelected ? 3 : 2) : (isSelected ? 2 : 1)
-                        )
+                        .stroke(borderColor, lineWidth: borderLineWidth)
                 )
                 .overlay(
                     // Editing mode indicators
@@ -718,7 +779,7 @@ struct EnhancedPlaybackControls: View {
                         // Handle scrubbing start/end
                     }
                 )
-                .tint(.accentColor)
+                .tint(Color.accentColor)
                 
                 // Time labels
                 HStack {
@@ -745,7 +806,6 @@ struct EnhancedPlaybackControls: View {
                         .font(.title2)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.large)
                 
                 Button(action: {
                     isPlaying.toggle()
@@ -754,7 +814,6 @@ struct EnhancedPlaybackControls: View {
                         .font(.title)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
                 
                 Button(action: {
                     // Skip forward 10 seconds  
@@ -764,7 +823,6 @@ struct EnhancedPlaybackControls: View {
                         .font(.title2)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.large)
                 
                 Spacer()
                 
@@ -783,9 +841,6 @@ struct EnhancedPlaybackControls: View {
                     }
                     .font(.caption)
                 }
-                .menuStyle(.button)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
         }
         .padding(.top, 8)
