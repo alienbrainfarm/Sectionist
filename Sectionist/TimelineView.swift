@@ -230,67 +230,86 @@ struct TimelineView: View {
     @ViewBuilder
     private func TimelineContent() -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Enhanced time ruler with more granular markers
-            TimeRuler(totalDuration: totalDuration)
-            
-            // Main timeline with sections
-            VStack(alignment: .leading, spacing: 8) {
-                // Section details info
-                if let selected = selectedSection ?? hoveredSection {
-                    SectionInfoOverlay(section: selected)
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                        .animation(.easeInOut(duration: 0.2), value: selectedSection?.id)
-                        .animation(.easeInOut(duration: 0.15), value: hoveredSection?.id)
-                }
+            // Use GeometryReader to ensure consistent width calculations
+            GeometryReader { geometry in
+                let availableWidth = geometry.size.width - 16 // Account for padding
                 
-                // Sections timeline with enhanced visuals
-                ScrollView(.horizontal, showsIndicators: true) {
-                    HStack(spacing: 1) {
-                        ForEach(sections, id: \.id) { section in
-                            EnhancedSectionBlock(
-                                section: section,
-                                totalDuration: totalDuration,
-                                isSelected: selectedSection?.id == section.id,
-                                isHovered: hoveredSection?.id == section.id,
-                                isEditingMode: isEditingMode
-                            )
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    selectedSection = selectedSection?.id == section.id ? nil : section
-                                }
-                                // Seek to section start time
-                                currentTime = section.startTime
-                            }
-                            .onHover { hovering in
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    hoveredSection = hovering ? section : nil
-                                }
-                            }
-                            .contextMenu {
-                                SectionContextMenu(section: section)
-                            }
-                            .accessibilityLabel("\(section.name) section")
-                            .accessibilityHint("Duration: \(section.formattedDuration). Double tap to seek to \(formatTime(section.startTime))")
-                            .accessibilityAddTraits(selectedSection?.id == section.id ? [.isSelected] : [])
+                VStack(alignment: .leading, spacing: 12) {
+                    // Enhanced time ruler with more granular markers
+                    TimeRuler(totalDuration: totalDuration, availableWidth: availableWidth)
+                    
+                    // Main timeline with sections
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Section details info
+                        if let selected = selectedSection ?? hoveredSection {
+                            SectionInfoOverlay(section: selected)
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                                .animation(.easeInOut(duration: 0.2), value: selectedSection?.id)
+                                .animation(.easeInOut(duration: 0.15), value: hoveredSection?.id)
                         }
+                        
+                        // Sections timeline with enhanced visuals and proper alignment
+                        ScrollView(.horizontal, showsIndicators: true) {
+                            ZStack(alignment: .topLeading) {
+                                // Background rectangle to establish the timeline width
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .frame(width: availableWidth, height: 50)
+                                
+                                // Positioned section blocks
+                                ForEach(sections, id: \.id) { section in
+                                    EnhancedSectionBlock(
+                                        section: section,
+                                        totalDuration: totalDuration,
+                                        availableWidth: availableWidth,
+                                        isSelected: selectedSection?.id == section.id,
+                                        isHovered: hoveredSection?.id == section.id,
+                                        isEditingMode: isEditingMode
+                                    )
+                                    .position(
+                                        x: sectionXPosition(for: section, availableWidth: availableWidth),
+                                        y: 25 // Center vertically in the 50pt height
+                                    )
+                                    .onTapGesture {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            selectedSection = selectedSection?.id == section.id ? nil : section
+                                        }
+                                        // Seek to section start time
+                                        currentTime = section.startTime
+                                    }
+                                    .onHover { hovering in
+                                        withAnimation(.easeInOut(duration: 0.15)) {
+                                            hoveredSection = hovering ? section : nil
+                                        }
+                                    }
+                                    .contextMenu {
+                                        SectionContextMenu(section: section)
+                                    }
+                                    .accessibilityLabel("\(section.name) section")
+                                    .accessibilityHint("Duration: \(section.formattedDuration). Double tap to seek to \(formatTime(section.startTime))")
+                                    .accessibilityAddTraits(selectedSection?.id == section.id ? [.isSelected] : [])
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(.controlBackgroundColor).opacity(0.5))
+                        )
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    
+                    // Enhanced playback controls
+                    EnhancedPlaybackControls(
+                        currentTime: $currentTime,
+                        totalDuration: totalDuration,
+                        isPlaying: .constant(false)
+                    )
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Timeline playback controls")
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.controlBackgroundColor).opacity(0.5))
-                )
             }
-            
-            // Enhanced playback controls
-            EnhancedPlaybackControls(
-                currentTime: $currentTime,
-                totalDuration: totalDuration,
-                isPlaying: .constant(false)
-            )
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Timeline playback controls")
+            .frame(height: 200) // Fixed height to prevent layout issues
         }
         .padding()
         .background(
@@ -298,6 +317,22 @@ struct TimelineView: View {
                 .fill(Color(.controlBackgroundColor))
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         )
+    }
+    
+    // Helper function to calculate the X position of a section block
+    private func sectionXPosition(for section: SongSection, availableWidth: CGFloat) -> CGFloat {
+        let startRatio = section.startTime / totalDuration
+        let sectionWidth = sectionWidth(for: section, availableWidth: availableWidth)
+        return (startRatio * availableWidth) + (sectionWidth / 2) // Position from center of block
+    }
+    
+    // Helper function to calculate section width consistently
+    private func sectionWidth(for section: SongSection, availableWidth: CGFloat) -> CGFloat {
+        let sectionDuration = section.endTime - section.startTime
+        let ratio = sectionDuration / totalDuration
+        let minWidth: CGFloat = 40 // Minimum width for readability
+        let calculatedWidth = ratio * availableWidth
+        return max(minWidth, calculatedWidth)
     }
     
     @ViewBuilder
@@ -488,6 +523,7 @@ struct SongSection: Identifiable, Equatable {
 /// - For songs > 300 seconds: 60-second intervals
 struct TimeRuler: View {
     let totalDuration: TimeInterval
+    let availableWidth: CGFloat
     
     private var timeInterval: TimeInterval {
         // Dynamic interval based on duration
@@ -505,7 +541,13 @@ struct TimeRuler: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
+        ZStack(alignment: .topLeading) {
+            // Background to establish width
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: availableWidth, height: 20)
+            
+            // Positioned time markers
             ForEach(0..<timeMarkCount, id: \.self) { index in
                 let time = TimeInterval(index) * timeInterval
                 
@@ -520,15 +562,21 @@ struct TimeRuler: View {
                             .fill(index % 2 == 0 ? Color.primary : Color.secondary)
                             .frame(width: 1, height: index % 2 == 0 ? 8 : 4)
                     }
-                    
-                    if index < timeMarkCount - 1 {
-                        Spacer()
-                    }
+                    .position(
+                        x: timeXPosition(for: time),
+                        y: 10 // Center vertically
+                    )
                 }
             }
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 4)
+    }
+    
+    // Helper function to calculate X position for time markers
+    private func timeXPosition(for time: TimeInterval) -> CGFloat {
+        let ratio = time / totalDuration
+        return ratio * availableWidth
     }
     
     private func formatTime(_ time: TimeInterval) -> String {
@@ -592,13 +640,14 @@ struct SectionInfoOverlay: View {
 /// Features:
 /// - Gradient fills for better visual appeal
 /// - Interactive hover and selection states
-/// - Dynamic sizing based on section duration
+/// - Dynamic sizing based on section duration and available width
 /// - Smooth animations and transitions
 /// - Editing mode indicators and controls
 /// - Accessibility support
 struct EnhancedSectionBlock: View {
     let section: SongSection
     let totalDuration: TimeInterval
+    let availableWidth: CGFloat
     let isSelected: Bool
     let isHovered: Bool
     let isEditingMode: Bool
@@ -607,9 +656,8 @@ struct EnhancedSectionBlock: View {
         let sectionDuration = section.endTime - section.startTime
         let ratio = sectionDuration / totalDuration
         let minWidth: CGFloat = 40 // Minimum width for readability
-        let maxWidth: CGFloat = 600 // Maximum width for very long sections
-        let calculatedWidth = ratio * 500 // Base timeline width
-        return max(minWidth, min(maxWidth, calculatedWidth))
+        let calculatedWidth = ratio * availableWidth
+        return max(minWidth, calculatedWidth)
     }
     
     private var blockHeight: CGFloat {
