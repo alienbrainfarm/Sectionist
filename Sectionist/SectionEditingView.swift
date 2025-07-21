@@ -399,7 +399,12 @@ struct TimeField: View {
     @State private var isEditing = false
     
     var body: some View {
-        TextField("0:00", text: $timeText)
+        TextField("0:00", text: $timeText, onEditingChanged: { editing in
+            isEditing = editing
+            if !editing {
+                parseAndUpdate()
+            }
+        })
             .textFieldStyle(.roundedBorder)
             .frame(width: 60)
             .font(.caption)
@@ -410,12 +415,6 @@ struct TimeField: View {
             .onChange(of: time) { _, _ in
                 if !isEditing {
                     updateTimeText()
-                }
-            }
-            .onEditingChanged { editing in
-                isEditing = editing
-                if !editing {
-                    parseAndUpdate()
                 }
             }
             .onSubmit {
