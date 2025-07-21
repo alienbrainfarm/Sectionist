@@ -15,11 +15,11 @@ Sectionist is a macOS application that helps musicians analyze songs by splittin
 - 🖥️ **Native macOS SwiftUI frontend with drag-and-drop support**
 - 🐍 **Python Flask backend with librosa-based audio analysis**
 - 📊 **Timeline visualization and analysis results display**
+- ✏️ **Section labeling and editing UI** ⭐ **NEW**
 - 🎸 Basic chord mapping (backend implemented, frontend integration in progress)
 
 **Planned Features:**
 - 🎸 Enhanced chord mapping UI and visualization
-- 🔧 Manual section editing and annotation
 - 📁 Export functionality (PDF, text, MIDI)
 - 🎤 Lyric extraction from audio
 - 🔄 Batch processing capabilities
@@ -161,10 +161,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for complete guidelines.
 - [x] **Frontend-backend HTTP communication**
 - [x] **SwiftUI timeline visualization foundation**
 
-### Phase 3: User Interface 🚧 **IN PROGRESS**
+### Phase 3: User Interface ✅ **COMPLETED**
 - [x] SwiftUI audio timeline visualization (basic implementation)
 - [x] Drag-and-drop audio file support
-- [ ] Section labeling and editing UI
+- [x] Section labeling and editing UI
 - [ ] Results export functionality
 
 ### Phase 4: Advanced Features
@@ -204,6 +204,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - **[Contributing Guide](CONTRIBUTING.md)** - Development and contribution guidelines
 - **[Development Setup](docs/DEVELOPMENT.md)** - Detailed dev environment setup
 - **[CI/CD Pipeline](docs/CI_CD.md)** - Continuous integration and deployment guide
+- **[Section Editing UI](docs/SECTION_EDITING_UI.md)** - Manual section editing and labeling features
 
 ## Technology Details
 

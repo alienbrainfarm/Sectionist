@@ -260,7 +260,8 @@ extension BackendAnalysisData {
                 name: section.name,
                 startTime: section.start,
                 endTime: section.end,
-                color: colorForSection(section.name, index: index)
+                color: colorForSection(section.name, index: index),
+                isUserEdited: false
             )
         }
     }
