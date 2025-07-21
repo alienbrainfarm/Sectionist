@@ -511,7 +511,7 @@ struct AddSectionBetweenView: View {
                     Text("Add section")
                         .font(.caption2)
                 }
-                .foregroundColor(.accentColor)
+                .foregroundColor(Color.accentColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
@@ -637,7 +637,7 @@ struct TimeSlider: View {
     var body: some View {
         VStack(spacing: 4) {
             Slider(value: $value, in: range, step: step)
-                .tint(.accentColor)
+                .tint(Color.accentColor)
             
             Text(formatTime(value))
                 .font(.caption)

@@ -147,7 +147,7 @@ struct TimelineView: View {
             .delay(Double(index) * 0.2)
         
         Circle()
-            .fill(.accentColor)
+            .fill(Color.accentColor)
             .frame(width: 8, height: 8)
             .scaleEffect(isAnalyzing ? 1.2 : 0.8)
             .animation(animation, value: isAnalyzing)
@@ -183,7 +183,7 @@ struct TimelineView: View {
             .repeatForever()
         
         let progressOverlay = RoundedRectangle(cornerRadius: 3)
-            .fill(.accentColor.opacity(0.6))
+            .fill(Color.accentColor.opacity(0.6))
             .scaleEffect(x: index < 3 ? 1.0 : 0.0, anchor: .leading)
             .animation(animation, value: isAnalyzing)
         
@@ -198,7 +198,7 @@ struct TimelineView: View {
         VStack(spacing: 20) {
             Image(systemName: "waveform.path")
                 .font(.system(size: 48))
-                .foregroundColor(.accentColor.opacity(0.6))
+                .foregroundColor(Color.accentColor.opacity(0.6))
             
             VStack(spacing: 8) {
                 Text("Ready to analyze")
@@ -779,7 +779,7 @@ struct EnhancedPlaybackControls: View {
                         // Handle scrubbing start/end
                     }
                 )
-                .tint(.accentColor)
+                .tint(Color.accentColor)
                 
                 // Time labels
                 HStack {

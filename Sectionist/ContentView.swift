@@ -156,7 +156,7 @@ struct AudioFileDropView: View {
         VStack(spacing: 20) {
             Image(systemName: "music.note.list")
                 .font(.system(size: 60))
-                .foregroundColor(isTargeted ? .accentColor : .secondary)
+                .foregroundColor(isTargeted ? Color.accentColor : .secondary)
                 .animation(.easeInOut(duration: 0.2), value: isTargeted)
             
             VStack(spacing: 8) {
@@ -177,7 +177,7 @@ struct AudioFileDropView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
                             .background(Color.accentColor.opacity(0.1))
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(Color.accentColor)
                             .cornerRadius(4)
                     }
                 }
