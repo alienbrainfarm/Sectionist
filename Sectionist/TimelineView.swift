@@ -8,6 +8,7 @@ import SwiftUI
 /// - Click-to-seek functionality
 /// - Responsive section blocks with gradients and animations
 /// - Enhanced playback controls with skip and speed options
+/// - Section editing and labeling capabilities
 /// - Accessibility support with proper labels and hints
 struct TimelineView: View {
     let audioFile: URL
@@ -21,12 +22,14 @@ struct TimelineView: View {
     @State private var showingError = false
     @State private var selectedSection: SongSection?
     @State private var hoveredSection: SongSection?
+    @State private var isEditingMode = false
+    @State private var showingSectionEditor = false
     
     @StateObject private var analysisService = AnalysisService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Enhanced header with duration info
+            // Enhanced header with duration info and editing controls
             HStack {
                 VStack(alignment: .leading) {
                     Text("Timeline")
@@ -42,12 +45,24 @@ struct TimelineView: View {
                 
                 Spacer()
                 
-                if !sections.isEmpty && !isAnalyzing {
-                    Button("Re-analyze") {
-                        startAnalysis()
+                HStack(spacing: 8) {
+                    if !sections.isEmpty && !isAnalyzing {
+                        Button("Edit Sections") {
+                            showingSectionEditor = true
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        
+                        Toggle("Edit Mode", isOn: $isEditingMode)
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                        
+                        Button("Re-analyze") {
+                            startAnalysis()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
             }
             
@@ -71,21 +86,24 @@ struct TimelineView: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred")
         }
+        .sheet(isPresented: $showingSectionEditor) {
+            SectionEditingView(sections: $sections, totalDuration: totalDuration)
+        }
     }
     
     private func loadMockData() {
         // Enhanced mock data for demonstration with more realistic song structure
         sections = [
-            SongSection(name: "Intro", startTime: 0, endTime: 12, color: .blue),
-            SongSection(name: "Verse 1", startTime: 12, endTime: 40, color: .green),
-            SongSection(name: "Pre-Chorus", startTime: 40, endTime: 52, color: .mint),
-            SongSection(name: "Chorus", startTime: 52, endTime: 80, color: .orange),
-            SongSection(name: "Verse 2", startTime: 80, endTime: 108, color: .green),
-            SongSection(name: "Pre-Chorus", startTime: 108, endTime: 120, color: .mint),
-            SongSection(name: "Chorus", startTime: 120, endTime: 148, color: .orange),
-            SongSection(name: "Bridge", startTime: 148, endTime: 180, color: .purple),
-            SongSection(name: "Final Chorus", startTime: 180, endTime: 220, color: .orange),
-            SongSection(name: "Outro", startTime: 220, endTime: 240, color: .red)
+            SongSection(name: "Intro", startTime: 0, endTime: 12, color: .blue, isUserEdited: false),
+            SongSection(name: "Verse 1", startTime: 12, endTime: 40, color: .green, isUserEdited: false),
+            SongSection(name: "Pre-Chorus", startTime: 40, endTime: 52, color: .mint, isUserEdited: false),
+            SongSection(name: "Chorus", startTime: 52, endTime: 80, color: .orange, isUserEdited: false),
+            SongSection(name: "Verse 2", startTime: 80, endTime: 108, color: .green, isUserEdited: false),
+            SongSection(name: "Pre-Chorus", startTime: 108, endTime: 120, color: .mint, isUserEdited: false),
+            SongSection(name: "Chorus", startTime: 120, endTime: 148, color: .orange, isUserEdited: false),
+            SongSection(name: "Bridge", startTime: 148, endTime: 180, color: .purple, isUserEdited: false),
+            SongSection(name: "Final Chorus", startTime: 180, endTime: 220, color: .orange, isUserEdited: false),
+            SongSection(name: "Outro", startTime: 220, endTime: 240, color: .red, isUserEdited: false)
         ]
         totalDuration = 240
     }
@@ -211,7 +229,8 @@ struct TimelineView: View {
                                 section: section,
                                 totalDuration: totalDuration,
                                 isSelected: selectedSection?.id == section.id,
-                                isHovered: hoveredSection?.id == section.id
+                                isHovered: hoveredSection?.id == section.id,
+                                isEditingMode: isEditingMode
                             )
                             .onTapGesture {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -223,6 +242,32 @@ struct TimelineView: View {
                             .onHover { hovering in
                                 withAnimation(.easeInOut(duration: 0.15)) {
                                     hoveredSection = hovering ? section : nil
+                                }
+                            }
+                            .contextMenu {
+                                if isEditingMode {
+                                    Button("Edit Section") {
+                                        selectedSection = section
+                                        showingSectionEditor = true
+                                    }
+                                    
+                                    Button("Duplicate Section") {
+                                        duplicateSection(section)
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    Button("Delete Section", role: .destructive) {
+                                        deleteSection(section)
+                                    }
+                                } else {
+                                    Button("Seek to Start") {
+                                        currentTime = section.startTime
+                                    }
+                                    
+                                    Button("Select Section") {
+                                        selectedSection = section
+                                    }
                                 }
                             }
                             .accessibilityLabel("\(section.name) section")
@@ -296,18 +341,59 @@ struct TimelineView: View {
         let seconds = Int(time) % 60
         return String(format: "%d:%02d", minutes, seconds)
     }
+    
+    // MARK: - Section Editing Methods
+    
+    private func duplicateSection(_ section: SongSection) {
+        let duplicatedSection = SongSection(
+            name: "\(section.name) Copy",
+            startTime: section.endTime,
+            endTime: min(section.endTime + section.duration, totalDuration),
+            color: section.color,
+            isUserEdited: true
+        )
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
+            sections.append(duplicatedSection)
+            sections.sort { $0.startTime < $1.startTime }
+        }
+    }
+    
+    private func deleteSection(_ section: SongSection) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            sections.removeAll { $0.id == section.id }
+            if selectedSection?.id == section.id {
+                selectedSection = nil
+            }
+        }
+    }
 }
 
 /// Song section data model with enhanced functionality
 /// 
 /// Provides helper methods for duration calculation and formatting
 /// Includes computed properties for better UI integration
-struct SongSection {
+/// Supports editing and modification for section labeling features
+struct SongSection: Identifiable, Equatable {
     let id = UUID()
     let name: String
     let startTime: TimeInterval
     let endTime: TimeInterval
     let color: Color
+    
+    // Editing state
+    let isUserEdited: Bool
+    let originalName: String?
+    
+    // Default initializer
+    init(name: String, startTime: TimeInterval, endTime: TimeInterval, color: Color, isUserEdited: Bool = false, originalName: String? = nil) {
+        self.name = name
+        self.startTime = startTime
+        self.endTime = endTime
+        self.color = color
+        self.isUserEdited = isUserEdited
+        self.originalName = originalName
+    }
     
     /// Helper to get section duration
     var duration: TimeInterval {
@@ -328,6 +414,23 @@ struct SongSection {
             let seconds = Int(duration) % 60
             return String(format: "%dm %ds", minutes, seconds)
         }
+    }
+    
+    /// Create an edited copy of this section
+    func editedCopy(name: String? = nil, startTime: TimeInterval? = nil, endTime: TimeInterval? = nil, color: Color? = nil) -> SongSection {
+        return SongSection(
+            name: name ?? self.name,
+            startTime: startTime ?? self.startTime,
+            endTime: endTime ?? self.endTime,
+            color: color ?? self.color,
+            isUserEdited: true,
+            originalName: self.originalName ?? self.name
+        )
+    }
+    
+    // Equatable conformance
+    static func == (lhs: SongSection, rhs: SongSection) -> Bool {
+        return lhs.id == rhs.id
     }
 }
 
@@ -460,12 +563,14 @@ struct SectionInfoOverlay: View {
 /// - Interactive hover and selection states
 /// - Dynamic sizing based on section duration
 /// - Smooth animations and transitions
+/// - Editing mode indicators and controls
 /// - Accessibility support
 struct EnhancedSectionBlock: View {
     let section: SongSection
     let totalDuration: TimeInterval
     let isSelected: Bool
     let isHovered: Bool
+    let isEditingMode: Bool
     
     private var blockWidth: CGFloat {
         let sectionDuration = section.endTime - section.startTime
@@ -502,23 +607,54 @@ struct EnhancedSectionBlock: View {
                 )
                 .frame(width: blockWidth, height: isSelected ? 36 : (isHovered ? 34 : 32))
                 .overlay(
-                    // Section name overlay
-                    Text(section.name)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 0.5)
-                        .padding(.horizontal, 6)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
+                    // Section name overlay with edit indicator
+                    HStack(spacing: 4) {
+                        if section.isUserEdited && isEditingMode {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                        }
+                        
+                        Text(section.name)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 0.5)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .padding(.horizontal, 6)
                 )
                 .overlay(
-                    // Selection/hover border
+                    // Selection/hover border with editing mode enhancements
                     RoundedRectangle(cornerRadius: 4)
                         .stroke(
-                            isSelected ? Color.white : (isHovered ? Color.white.opacity(0.6) : Color.clear),
-                            lineWidth: isSelected ? 2 : 1
+                            isEditingMode ? 
+                                (isSelected ? Color.white : (isHovered ? Color.white.opacity(0.6) : Color.white.opacity(0.3))) :
+                                (isSelected ? Color.white : (isHovered ? Color.white.opacity(0.6) : Color.clear)),
+                            lineWidth: isEditingMode ? (isSelected ? 3 : 2) : (isSelected ? 2 : 1)
                         )
+                )
+                .overlay(
+                    // Editing mode indicators
+                    Group {
+                        if isEditingMode && (isSelected || isHovered) {
+                            VStack {
+                                HStack {
+                                    // Resize handles
+                                    Rectangle()
+                                        .fill(Color.white)
+                                        .frame(width: 2, height: 16)
+                                    Spacer()
+                                    Rectangle()
+                                        .fill(Color.white)
+                                        .frame(width: 2, height: 16)
+                                }
+                                Spacer()
+                            }
+                            .padding(2)
+                        }
+                    }
                 )
                 .cornerRadius(4)
                 .shadow(
@@ -529,14 +665,23 @@ struct EnhancedSectionBlock: View {
                 )
                 .scaleEffect(isSelected ? 1.05 : (isHovered ? 1.02 : 1.0))
             
-            // Timestamp with improved styling
-            Text(formatTime(section.startTime))
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .fontWeight(.medium)
+            // Timestamp with improved styling and edit indicator
+            HStack(spacing: 4) {
+                Text(formatTime(section.startTime))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fontWeight(.medium)
+                
+                if section.isUserEdited {
+                    Image(systemName: "pencil")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
+            }
         }
         .animation(.easeInOut(duration: 0.2), value: isSelected)
         .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .animation(.easeInOut(duration: 0.2), value: isEditingMode)
     }
     
     private func formatTime(_ time: TimeInterval) -> String {
