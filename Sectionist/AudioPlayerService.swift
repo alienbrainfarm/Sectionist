@@ -29,18 +29,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     // MARK: - Initialization
     private override init() {
         super.init()
-        setupAudioSession()
-    }
-    
-    // MARK: - Audio Session Setup
-    private func setupAudioSession() {
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("Failed to setup audio session: \(error.localizedDescription)")
-            errorMessage = "Failed to setup audio session: \(error.localizedDescription)"
-        }
+        // Note: AVAudioSession is iOS-specific and not needed on macOS
+        // AVAudioPlayer handles audio routing automatically on macOS
     }
     
     // MARK: - Public Methods
@@ -212,7 +202,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     deinit {
         stop()
-        try? AVAudioSession.sharedInstance().setActive(false)
+        // Note: AVAudioSession cleanup is iOS-specific and not needed on macOS
     }
 }
 
