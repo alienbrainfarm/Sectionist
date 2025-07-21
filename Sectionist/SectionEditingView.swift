@@ -596,7 +596,6 @@ struct AddSectionSheet: View {
             }
             .padding()
             .navigationTitle("Add Section")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
