@@ -7,17 +7,21 @@ struct ContentView: View {
     @State private var isShowingFilePicker = false
     @State private var errorMessage: String?
     @State private var showingError = false
+    @AppStorage("showAnalysisResults") private var showAnalysisResults = false // Use AppStorage to sync with menu
     
     // Shared analysis state
     @State private var analysisResults: AnalysisData?
     @State private var songSections: [SongSection] = []
     
+    // Recent files state
+    @State private var recentFiles: [URL] = []
+    
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             HeaderView()
             
-                if let audioFile = selectedAudioFile {
-                VStack {
+            if let audioFile = selectedAudioFile {
+                VStack(spacing: 8) {
                     AudioFileInfoView(
                         audioFile: audioFile, 
                         isShowingFilePicker: $isShowingFilePicker,
@@ -30,31 +34,47 @@ struct ContentView: View {
                     )
                     
                     Divider()
-                        .padding(.vertical)
                     
-                    HStack {
-                        TimelineView(
-                            audioFile: audioFile, 
-                            isAnalyzing: $isAnalyzing, 
-                            sections: $songSections,
-                            onAnalysisComplete: handleAnalysisComplete
-                        )
-                        
+                    // Timeline at the top, spanning full width
+                    TimelineView(
+                        audioFile: audioFile, 
+                        isAnalyzing: $isAnalyzing, 
+                        sections: $songSections,
+                        onAnalysisComplete: handleAnalysisComplete
+                    )
+                    .frame(maxWidth: .infinity)
+                    
+                    // Analysis Results below, only shown when toggled on
+                    if showAnalysisResults {
                         Divider()
+                            .padding(.top, 4)
                         
                         AnalysisResultsView(
                             audioFile: audioFile, 
                             isAnalyzing: $isAnalyzing, 
                             analysisResults: $analysisResults
                         )
+                        .frame(maxWidth: .infinity, maxHeight: 300)
+                        .transition(.opacity.combined(with: .slide))
                     }
                 }
                 .padding()
+                .animation(.easeInOut(duration: 0.3), value: showAnalysisResults)
             } else {
-                AudioFileDropView(selectedAudioFile: $selectedAudioFile, isShowingFilePicker: $isShowingFilePicker)
+                AudioFileDropView(
+                    selectedAudioFile: $selectedAudioFile, 
+                    isShowingFilePicker: $isShowingFilePicker,
+                    onFileSelected: { url in
+                        addToRecentFiles(url)
+                        startAutomaticAnalysis()
+                    }
+                )
             }
         }
         .frame(minWidth: 800, minHeight: 600)
+        .onAppear {
+            loadRecentFiles()
+        }
         .fileImporter(
             isPresented: $isShowingFilePicker,
             allowedContentTypes: [.audio],
@@ -66,6 +86,12 @@ struct ContentView: View {
                     // Start accessing security-scoped resource for sandboxed app
                     _ = url.startAccessingSecurityScopedResource()
                     selectedAudioFile = url
+                    
+                    // Add to recent files
+                    addToRecentFiles(url)
+                    
+                    // Start analysis automatically
+                    startAutomaticAnalysis()
                 }
             case .failure(let error):
                 errorMessage = "File selection failed: \(error.localizedDescription)"
@@ -79,10 +105,46 @@ struct ContentView: View {
         }
     }
     
+    
     private func handleAnalysisComplete(backendData: BackendAnalysisData) {
         // Update both timeline and analysis results with the same data
         songSections = backendData.toSongSections()
         analysisResults = backendData.toAnalysisData()
+    }
+    
+    private func addToRecentFiles(_ url: URL) {
+        // Remove if already exists to avoid duplicates
+        recentFiles.removeAll { $0 == url }
+        
+        // Add to the beginning
+        recentFiles.insert(url, at: 0)
+        
+        // Keep only the last 5 files
+        if recentFiles.count > 5 {
+            recentFiles = Array(recentFiles.prefix(5))
+        }
+        
+        // Save to UserDefaults
+        saveRecentFiles()
+    }
+    
+    private func saveRecentFiles() {
+        let urls = recentFiles.map { $0.absoluteString }
+        UserDefaults.standard.set(urls, forKey: "RecentAudioFiles")
+    }
+    
+    private func loadRecentFiles() {
+        if let urlStrings = UserDefaults.standard.array(forKey: "RecentAudioFiles") as? [String] {
+            recentFiles = urlStrings.compactMap { URL(string: $0) }
+        }
+    }
+    
+    private func startAutomaticAnalysis() {
+        // Trigger analysis automatically after a short delay to allow UI to update
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // This will be handled by TimelineView when it receives the new audio file
+            // We don't need to duplicate the analysis logic here
+        }
     }
 }
 
@@ -151,6 +213,7 @@ struct AudioFileDropView: View {
     @Binding var selectedAudioFile: URL?
     @Binding var isShowingFilePicker: Bool
     @State private var isTargeted = false
+    let onFileSelected: (URL) -> Void // Callback for when a file is selected
     
     var body: some View {
         VStack(spacing: 20) {
@@ -226,6 +289,7 @@ struct AudioFileDropView: View {
                     if isValidAudioFile(url) {
                         _ = url.startAccessingSecurityScopedResource()
                         selectedAudioFile = url
+                        onFileSelected(url) // Call the callback
                     } else {
                         print("Dropped file is not a supported audio format: \(url.pathExtension)")
                     }
