@@ -85,78 +85,95 @@ Before you start contributing, make sure you have:
 
 ## Setting Up Your Development Environment
 
-### Frontend (SwiftUI)
+### Frontend (SwiftUI) ✅ READY TO USE
 
-The frontend is a macOS SwiftUI application. Currently, the Xcode project structure is being planned.
+The frontend is a fully implemented macOS SwiftUI application.
 
-1. **Once the Xcode project exists**:
+1. **Open the Xcode project**:
    ```bash
    cd Sectionist/  # The SwiftUI project directory
    open Sectionist.xcodeproj
    ```
 
 2. **Build and run** in Xcode (⌘+R)
+   - The app will start and attempt to connect to the backend server
+   - Make sure the backend is running first (see below)
 
-### Backend (Python)
+### Backend (Python) ✅ READY TO USE
 
-The backend handles audio processing and machine learning inference.
+The backend is fully implemented with Flask server and audio analysis.
 
-1. **Create a virtual environment**:
+1. **Quick setup with provided script**:
+   ```bash
+   cd backend/
+   ./start_server.sh
+   ```
+   This script will:
+   - Create a virtual environment
+   - Install all dependencies
+   - Start the server on http://127.0.0.1:5000
+
+2. **Manual setup** (alternative):
    ```bash
    cd backend/
    python3 -m venv venv
    source venv/bin/activate  # On macOS/Linux
-   ```
-
-2. **Install dependencies** (when requirements.txt exists):
-   ```bash
    pip install -r requirements.txt
+   python server.py
    ```
 
-3. **Install development dependencies**:
+3. **Development dependencies** (for testing and linting):
    ```bash
-   pip install black flake8 pytest mypy
+   pip install -r requirements-dev.txt
    ```
 
-### Audio Processing Dependencies
+### Audio Processing Dependencies ✅ IMPLEMENTED
 
-The backend will likely use these libraries:
-- `librosa` - Audio analysis
-- `numpy` - Numerical computing  
+The backend uses these libraries:
+- `librosa>=0.10.0` - Audio analysis and feature extraction ✅
+- `numpy>=1.24.0` - Numerical computing ✅
+- `scipy>=1.10.0` - Scientific computing ✅
+- `flask>=2.3.0` - Web framework for HTTP API ✅  
 - `scipy` - Scientific computing
 - `scikit-learn` - Machine learning
 - `madmom` - Audio processing (optional)
 
 ## Making Changes
 
-### Project Structure
+### Project Structure (Current Implementation)
 
 ```
 Sectionist/
 ├── README.md
+├── LICENSE                  # MIT License ✅ IMPLEMENTED
 ├── CONTRIBUTING.md
 ├── docs/
 │   ├── PRD.md
-│   └── DEVELOPMENT.md
-├── Sectionist/           # SwiftUI macOS app (planned)
-├── backend/              # Python backend (planned)
+│   ├── DEVELOPMENT.md
+│   ├── CI_CD.md
+│   └── COMMUNICATION_PROTOCOL.md
+├── Sectionist/              # SwiftUI macOS app ✅ IMPLEMENTED
+│   ├── Sectionist.xcodeproj
+│   ├── SectionistApp.swift
+│   ├── ContentView.swift
+│   ├── AnalysisService.swift
+│   └── ...
+├── backend/                 # Python backend ✅ IMPLEMENTED
 │   ├── requirements.txt
-│   ├── src/
-│   │   ├── audio_analysis/
-│   │   ├── segmentation/
-│   │   └── api/
-│   └── tests/
-└── scripts/              # Build and utility scripts (planned)
+│   ├── server.py
+│   ├── example.py
+│   └── test_*.py
+└── scripts/                 # Build and utility scripts (planned)
 ```
 
 ### Areas for Contribution
 
-1. **Audio Analysis** - Song segmentation, key detection, chord recognition
-2. **SwiftUI Frontend** - User interface, file handling, visualization
-3. **Integration** - Communication between frontend and backend
-4. **Testing** - Unit tests, integration tests
-5. **Documentation** - User guides, API documentation
-6. **Performance** - Optimization, caching, memory management
+1. **Audio Analysis** - Enhanced segmentation accuracy, advanced chord detection
+2. **SwiftUI Frontend** - Section editing UI, export functionality, settings
+3. **Integration** - Performance optimization, error handling, file format support
+4. **Testing** - Expanded test coverage, UI testing, performance testing
+5. **Documentation** - User guides, API documentation, tutorials
+6. **Performance** - Memory optimization, large file handling, real-time processing
 
 ## Submitting Changes
 
