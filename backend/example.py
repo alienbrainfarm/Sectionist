@@ -451,6 +451,13 @@ def main():
         print("\n🎼 Detected Sections:")
         for section in results["sections"]:
             print(f"  {section['name']}: {section['start']}s - {section['end']}s")
+            
+        if results["key_changes"]:
+            print("\n🔄 Key Changes:")
+            for change in results["key_changes"]:
+                print(f"  {change['timestamp']}s: {change['from_key']} → {change['to_key']} (confidence: {change['confidence']})")
+        else:
+            print("\n🔄 Key Changes: None detected")
 
     except Exception as e:
         print(f"❌ Error analyzing audio: {e}")
