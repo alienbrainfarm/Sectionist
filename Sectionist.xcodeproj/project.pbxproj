@@ -14,6 +14,7 @@
 		3D1A2A682C4C5F9A00123456 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A672C4C5F9A00123456 /* TimelineView.swift */; };
 		3D1A2A6A2C4C5FA500123456 /* AnalysisResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A692C4C5FA500123456 /* AnalysisResultsView.swift */; };
 		3D1A2A6C2C4C5FB000123456 /* AnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A6B2C4C5FB000123456 /* AnalysisService.swift */; };
+		3D1A2A6D2C4C5FC000123456 /* SectionEditingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A2A6E2C4C5FC000123456 /* SectionEditingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		3D1A2A672C4C5F9A00123456 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
 		3D1A2A692C4C5FA500123456 /* AnalysisResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisResultsView.swift; sourceTree = "<group>"; };
 		3D1A2A6B2C4C5FB000123456 /* AnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisService.swift; sourceTree = "<group>"; };
+		3D1A2A6E2C4C5FC000123456 /* SectionEditingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionEditingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,6 +63,7 @@
 				3D1A2A592C4C5F8A00123456 /* SectionistApp.swift */,
 				3D1A2A5B2C4C5F8A00123456 /* ContentView.swift */,
 				3D1A2A672C4C5F9A00123456 /* TimelineView.swift */,
+				3D1A2A6E2C4C5FC000123456 /* SectionEditingView.swift */,
 				3D1A2A692C4C5FA500123456 /* AnalysisResultsView.swift */,
 				3D1A2A6B2C4C5FB000123456 /* AnalysisService.swift */,
 				3D1A2A5D2C4C5F8B00123456 /* Assets.xcassets */,
@@ -150,6 +153,7 @@
 			files = (
 				3D1A2A5C2C4C5F8A00123456 /* ContentView.swift in Sources */,
 				3D1A2A682C4C5F9A00123456 /* TimelineView.swift in Sources */,
+				3D1A2A6D2C4C5FC000123456 /* SectionEditingView.swift in Sources */,
 				3D1A2A6A2C4C5FA500123456 /* AnalysisResultsView.swift in Sources */,
 				3D1A2A6C2C4C5FB000123456 /* AnalysisService.swift in Sources */,
 				3D1A2A5A2C4C5F8A00123456 /* SectionistApp.swift in Sources */,
