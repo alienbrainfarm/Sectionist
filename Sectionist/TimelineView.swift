@@ -16,7 +16,6 @@ struct TimelineView: View {
     @Binding var sections: [SongSection]
     let onAnalysisComplete: (BackendAnalysisData) -> Void
     
-    @State private var currentTime: TimeInterval = 0
     @State private var totalDuration: TimeInterval = 300 // Will be updated from analysis
     @State private var errorMessage: String?
     @State private var showingError = false
@@ -26,6 +25,7 @@ struct TimelineView: View {
     @State private var showingSectionEditor = false
     
     @StateObject private var analysisService = AnalysisService.shared
+    @StateObject private var audioPlayer = AudioPlayerService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -77,6 +77,8 @@ struct TimelineView: View {
                 // Only load mock data if no real analysis has been done
                 loadMockData()
             }
+            // Load the audio file into the player when the view appears
+            audioPlayer.loadAudio(from: audioFile)
         }
         .alert("Analysis Error", isPresented: $showingError) {
             Button("OK") { }
@@ -275,7 +277,7 @@ struct TimelineView: View {
                                             selectedSection = selectedSection?.id == section.id ? nil : section
                                         }
                                         // Seek to section start time
-                                        currentTime = section.startTime
+                                        audioPlayer.seek(to: section.startTime)
                                     }
                                     .onHover { hovering in
                                         withAnimation(.easeInOut(duration: 0.15)) {
@@ -301,9 +303,8 @@ struct TimelineView: View {
                     
                     // Enhanced playback controls
                     EnhancedPlaybackControls(
-                        currentTime: $currentTime,
-                        totalDuration: totalDuration,
-                        isPlaying: .constant(false)
+                        audioPlayer: audioPlayer,
+                        totalDuration: totalDuration
                     )
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("Timeline playback controls")
@@ -354,7 +355,7 @@ struct TimelineView: View {
             }
         } else {
             Button("Seek to Start") {
-                currentTime = section.startTime
+                audioPlayer.seek(to: section.startTime)
             }
             
             Button("Select Section") {
@@ -812,33 +813,43 @@ struct EnhancedSectionBlock: View {
 /// - Speed control menu (0.5x to 2x)
 /// - Time display for current and total duration
 struct EnhancedPlaybackControls: View {
-    @Binding var currentTime: TimeInterval
+    @ObservedObject var audioPlayer: AudioPlayerService
     let totalDuration: TimeInterval
-    @Binding var isPlaying: Bool
+    
+    @State private var isDragging = false
+    @State private var draggedTime: TimeInterval = 0
     
     var body: some View {
         VStack(spacing: 8) {
             // Progress slider with enhanced styling
             VStack(spacing: 4) {
                 Slider(
-                    value: $currentTime,
-                    in: 0...totalDuration,
+                    value: isDragging ? $draggedTime : Binding(
+                        get: { audioPlayer.currentTime },
+                        set: { audioPlayer.seek(to: $0) }
+                    ),
+                    in: 0...max(totalDuration, audioPlayer.duration),
                     onEditingChanged: { editing in
-                        // Handle scrubbing start/end
+                        isDragging = editing
+                        if !editing {
+                            audioPlayer.seek(to: draggedTime)
+                        } else if editing {
+                            draggedTime = audioPlayer.currentTime
+                        }
                     }
                 )
                 .tint(Color.accentColor)
                 
                 // Time labels
                 HStack {
-                    Text(formatTime(currentTime))
+                    Text(audioPlayer.formattedCurrentTime)
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
                     
                     Spacer()
                     
-                    Text(formatTime(totalDuration))
+                    Text(formatTime(max(totalDuration, audioPlayer.duration)))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -847,48 +858,63 @@ struct EnhancedPlaybackControls: View {
             // Control buttons with enhanced styling
             HStack(spacing: 16) {
                 Button(action: { 
-                    // Skip backward 10 seconds
-                    currentTime = max(0, currentTime - 10)
+                    audioPlayer.skipBackward()
                 }) {
                     Image(systemName: "gobackward.10")
                         .font(.title2)
                 }
                 .buttonStyle(.bordered)
+                .disabled(!audioPlayer.hasAudioLoaded)
                 
                 Button(action: {
-                    isPlaying.toggle()
+                    audioPlayer.togglePlayback()
                 }) {
-                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    Image(systemName: audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                         .font(.title)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(!audioPlayer.hasAudioLoaded)
                 
                 Button(action: {
-                    // Skip forward 10 seconds  
-                    currentTime = min(totalDuration, currentTime + 10)
+                    audioPlayer.skipForward()
                 }) {
                     Image(systemName: "goforward.10")
                         .font(.title2)
                 }
                 .buttonStyle(.bordered)
+                .disabled(!audioPlayer.hasAudioLoaded)
                 
                 Spacer()
                 
                 // Speed control
                 Menu {
-                    Button("0.5x") { /* Set speed to 0.5x */ }
-                    Button("0.75x") { /* Set speed to 0.75x */ }
-                    Button("1x") { /* Set speed to 1x */ }
-                    Button("1.25x") { /* Set speed to 1.25x */ }
-                    Button("1.5x") { /* Set speed to 1.5x */ }
-                    Button("2x") { /* Set speed to 2x */ }
+                    Button("0.5x") { audioPlayer.setPlaybackRate(0.5) }
+                    Button("0.75x") { audioPlayer.setPlaybackRate(0.75) }
+                    Button("1x") { audioPlayer.setPlaybackRate(1.0) }
+                    Button("1.25x") { audioPlayer.setPlaybackRate(1.25) }
+                    Button("1.5x") { audioPlayer.setPlaybackRate(1.5) }
+                    Button("2x") { audioPlayer.setPlaybackRate(2.0) }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "speedometer")
-                        Text("1x")
+                        Text("\(audioPlayer.playbackRate, specifier: "%.2g")x")
                     }
                     .font(.caption)
                 }
+                .disabled(!audioPlayer.hasAudioLoaded)
+            }
+            
+            // Error message display
+            if let errorMessage = audioPlayer.errorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+                .padding(.top, 4)
             }
         }
         .padding(.top, 8)
