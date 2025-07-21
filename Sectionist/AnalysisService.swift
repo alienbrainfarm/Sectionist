@@ -158,14 +158,39 @@ struct BackendAnalysisData: Codable {
     let key: String
     let sections: [BackendSongSection]
     let beatsDetected: Int
+    let keyChanges: [BackendKeyChange]
+    let chords: [BackendChord]
     
     enum CodingKeys: String, CodingKey {
         case duration, tempo, key, sections
         case beatsDetected = "beats_detected"
+        case keyChanges = "key_changes"
+        case chords
     }
 }
 
 struct BackendSongSection: Codable {
+    let name: String
+    let start: Double
+    let end: Double
+    let confidence: Double
+}
+
+struct BackendKeyChange: Codable {
+    let timestamp: Double
+    let fromKey: String
+    let toKey: String
+    let confidence: Double
+    
+    enum CodingKeys: String, CodingKey {
+        case timestamp
+        case fromKey = "from_key"
+        case toKey = "to_key"
+        case confidence
+    }
+}
+
+struct BackendChord: Codable {
     let name: String
     let start: Double
     let end: Double
@@ -215,8 +240,16 @@ extension BackendAnalysisData {
         return AnalysisData(
             detectedKey: key,
             bpm: Int(tempo.rounded()),
-            keyChanges: [], // Key changes not implemented in backend yet
-            chordProgression: [] // Chord progression not implemented in backend yet
+            keyChanges: keyChanges.map { backendKeyChange in
+                KeyChange(time: backendKeyChange.timestamp, newKey: backendKeyChange.toKey)
+            },
+            chordProgression: chords.map { backendChord in
+                ChordInfo(
+                    startTime: backendChord.start,
+                    chord: backendChord.name,
+                    duration: backendChord.end - backendChord.start
+                )
+            }
         )
     }
     
