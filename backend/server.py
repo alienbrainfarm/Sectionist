@@ -97,6 +97,7 @@ def analyze_audio():
                     "key_changes": results["key_changes"],
                     "sections": results["sections"],
                     "beats_detected": results["beats_detected"],
+                    "chords": results["chords"],
                 },
             }
 

@@ -192,5 +192,145 @@ def test_key_profiles_coverage():
     assert detected_key in expected_keys
 
 
+def test_chord_detection_basic():
+    """Test basic chord detection functionality."""
+    from example import detect_chords
+    
+    # Create test audio with a C major chord (C-E-G)
+    sr = 22050
+    duration = 5  # 5 seconds
+    t = np.linspace(0, duration, duration * sr)
+    
+    # C major chord frequencies: C4=261.63, E4=329.63, G4=392.00
+    y = (0.5 * np.sin(2 * np.pi * 261.63 * t) +
+         0.3 * np.sin(2 * np.pi * 329.63 * t) +
+         0.3 * np.sin(2 * np.pi * 392.00 * t))
+    
+    chords = detect_chords(y, sr)
+    
+    # Should detect some chords
+    assert isinstance(chords, list)
+    
+    # Each chord should have proper structure
+    for chord in chords:
+        assert isinstance(chord, dict)
+        assert 'name' in chord
+        assert 'start' in chord
+        assert 'end' in chord
+        assert 'confidence' in chord
+        assert isinstance(chord['name'], str)
+        assert isinstance(chord['start'], (int, float))
+        assert isinstance(chord['end'], (int, float))
+        assert isinstance(chord['confidence'], (int, float))
+        assert 0 <= chord['confidence'] <= 1
+        assert chord['start'] < chord['end']
+
+
+def test_chord_detection_multiple_chords():
+    """Test chord detection with multiple different chords."""
+    from example import detect_chords
+    
+    sr = 22050
+    segment_duration = 2  # 2 seconds per chord
+    
+    # Create a progression: C major -> F major -> G major
+    t1 = np.linspace(0, segment_duration, segment_duration * sr)
+    t2 = np.linspace(segment_duration, segment_duration * 2, segment_duration * sr)
+    t3 = np.linspace(segment_duration * 2, segment_duration * 3, segment_duration * sr)
+    
+    # C major (C-E-G): 261.63, 329.63, 392.00
+    c_major = (0.5 * np.sin(2 * np.pi * 261.63 * t1) +
+               0.3 * np.sin(2 * np.pi * 329.63 * t1) +
+               0.3 * np.sin(2 * np.pi * 392.00 * t1))
+    
+    # F major (F-A-C): 349.23, 440.00, 523.25
+    f_major = (0.5 * np.sin(2 * np.pi * 349.23 * t2) +
+               0.3 * np.sin(2 * np.pi * 440.00 * t2) +
+               0.3 * np.sin(2 * np.pi * 523.25 * t2))
+    
+    # G major (G-B-D): 392.00, 493.88, 587.33
+    g_major = (0.5 * np.sin(2 * np.pi * 392.00 * t3) +
+               0.3 * np.sin(2 * np.pi * 493.88 * t3) +
+               0.3 * np.sin(2 * np.pi * 587.33 * t3))
+    
+    # Combine all segments
+    y = np.concatenate([c_major, f_major, g_major])
+    
+    chords = detect_chords(y, sr)
+    
+    # Should detect chords
+    assert len(chords) >= 1
+    assert isinstance(chords, list)
+    
+    # Verify chord progression covers expected time range
+    if chords:
+        first_start = min(chord['start'] for chord in chords)
+        last_end = max(chord['end'] for chord in chords) 
+        assert first_start < 2.0  # Should start early
+        assert last_end > 4.0     # Should cover most of the audio
+
+
+def test_chord_detection_integration():
+    """Test that chord detection integrates properly with analyze_audio_file."""
+    from example import analyze_audio_file
+    import tempfile
+    import soundfile as sf
+    
+    # Create test audio data
+    sr = 22050
+    duration = 10
+    t = np.linspace(0, duration, duration * sr)
+    
+    # Simple C major chord
+    y = (0.5 * np.sin(2 * np.pi * 261.63 * t) +
+         0.3 * np.sin(2 * np.pi * 329.63 * t) +
+         0.3 * np.sin(2 * np.pi * 392.00 * t))
+    
+    # Save as temporary WAV file
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+        sf.write(tmp.name, y, sr)
+        temp_path = tmp.name
+    
+    try:
+        # Analyze the file
+        results = analyze_audio_file(temp_path)
+        
+        # Verify the results include chord information
+        assert 'chords' in results
+        assert isinstance(results['chords'], list)
+        
+        # If chords are detected, verify structure
+        for chord in results['chords']:
+            assert isinstance(chord, dict)
+            assert 'name' in chord
+            assert 'start' in chord
+            assert 'end' in chord
+            assert 'confidence' in chord
+            
+    finally:
+        # Clean up
+        import os
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_empty_audio_chord_detection():
+    """Test chord detection with silent/empty audio."""
+    from example import detect_chords
+    
+    # Create silent audio
+    sr = 22050
+    duration = 5
+    y = np.zeros(duration * sr)
+    
+    chords = detect_chords(y, sr)
+    
+    # Should return empty list or very few low-confidence chords
+    assert isinstance(chords, list)
+    # Silent audio should not detect high-confidence chords
+    for chord in chords:
+        assert chord['confidence'] < 0.8  # Low confidence expected for silence
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
