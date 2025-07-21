@@ -93,18 +93,21 @@ struct TimelineView: View {
     
     private func loadMockData() {
         // Enhanced mock data for demonstration with more realistic song structure
-        sections = [
-            SongSection(name: "Intro", startTime: 0, endTime: 12, color: .blue, isUserEdited: false),
-            SongSection(name: "Verse 1", startTime: 12, endTime: 40, color: .green, isUserEdited: false),
-            SongSection(name: "Pre-Chorus", startTime: 40, endTime: 52, color: .mint, isUserEdited: false),
-            SongSection(name: "Chorus", startTime: 52, endTime: 80, color: .orange, isUserEdited: false),
-            SongSection(name: "Verse 2", startTime: 80, endTime: 108, color: .green, isUserEdited: false),
-            SongSection(name: "Pre-Chorus", startTime: 108, endTime: 120, color: .mint, isUserEdited: false),
-            SongSection(name: "Chorus", startTime: 120, endTime: 148, color: .orange, isUserEdited: false),
-            SongSection(name: "Bridge", startTime: 148, endTime: 180, color: .purple, isUserEdited: false),
-            SongSection(name: "Final Chorus", startTime: 180, endTime: 220, color: .orange, isUserEdited: false),
-            SongSection(name: "Outro", startTime: 220, endTime: 240, color: .red, isUserEdited: false)
-        ]
+        // Breaking up the array creation to help the compiler type-check
+        var mockSections: [SongSection] = []
+        
+        mockSections.append(SongSection(name: "Intro", startTime: 0, endTime: 12, color: .blue, isUserEdited: false))
+        mockSections.append(SongSection(name: "Verse 1", startTime: 12, endTime: 40, color: .green, isUserEdited: false))
+        mockSections.append(SongSection(name: "Pre-Chorus", startTime: 40, endTime: 52, color: .mint, isUserEdited: false))
+        mockSections.append(SongSection(name: "Chorus", startTime: 52, endTime: 80, color: .orange, isUserEdited: false))
+        mockSections.append(SongSection(name: "Verse 2", startTime: 80, endTime: 108, color: .green, isUserEdited: false))
+        mockSections.append(SongSection(name: "Pre-Chorus", startTime: 108, endTime: 120, color: .mint, isUserEdited: false))
+        mockSections.append(SongSection(name: "Chorus", startTime: 120, endTime: 148, color: .orange, isUserEdited: false))
+        mockSections.append(SongSection(name: "Bridge", startTime: 148, endTime: 180, color: .purple, isUserEdited: false))
+        mockSections.append(SongSection(name: "Final Chorus", startTime: 180, endTime: 220, color: .orange, isUserEdited: false))
+        mockSections.append(SongSection(name: "Outro", startTime: 220, endTime: 240, color: .red, isUserEdited: false))
+        
+        sections = mockSections
         totalDuration = 240
     }
     
@@ -217,8 +220,8 @@ struct TimelineView: View {
                 if let selected = selectedSection ?? hoveredSection {
                     SectionInfoOverlay(section: selected)
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                        .animation(.easeInOut(duration: 0.2), value: selectedSection)
-                        .animation(.easeInOut(duration: 0.15), value: hoveredSection)
+                        .animation(.easeInOut(duration: 0.2), value: selectedSection?.id)
+                        .animation(.easeInOut(duration: 0.15), value: hoveredSection?.id)
                 }
                 
                 // Sections timeline with enhanced visuals
