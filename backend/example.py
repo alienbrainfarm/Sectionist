@@ -23,6 +23,15 @@ import os
 import sys
 import numpy as np
 
+# Import improved segmentation module
+try:
+    from improved_segmentation import improved_analyze_song_structure, post_process_sections
+    IMPROVED_SEGMENTATION_AVAILABLE = True
+    print("✅ Improved segmentation module loaded")
+except ImportError:
+    IMPROVED_SEGMENTATION_AVAILABLE = False
+    print("⚠️  Improved segmentation not available, using fallback")
+
 # Note: scipy imports available for advanced processing if needed
 # from scipy import ndimage, signal
 
@@ -36,6 +45,42 @@ except ImportError:
 
 
 def analyze_song_structure(y, sr):
+    """
+    Analyze song structure using music information retrieval techniques.
+
+    This function uses either improved segmentation (when available) or falls back
+    to the original frame-based analysis approach.
+
+    Args:
+        y (np.array): Audio time series
+        sr (int): Sample rate
+
+    Returns:
+        list: List of detected sections with labels and timestamps
+    """
+    
+    # Use improved segmentation if available
+    if IMPROVED_SEGMENTATION_AVAILABLE:
+        try:
+            print("🚀 Using improved segmentation algorithm...")
+            sections = improved_analyze_song_structure(y, sr)
+            
+            # Apply post-processing to refine results
+            sections = post_process_sections(sections, min_section_length=5.0, merge_similar=True)
+            
+            print(f"✅ Improved analysis completed, {len(sections)} sections detected")
+            return sections
+            
+        except Exception as e:
+            print(f"⚠️  Improved segmentation failed: {e}")
+            print("   Falling back to original algorithm...")
+    
+    # Fallback to original algorithm
+    print("🔄 Using original segmentation algorithm...")
+    return analyze_song_structure_original(y, sr)
+
+
+def analyze_song_structure_original(y, sr):
     """
     Analyze song structure using music information retrieval techniques.
 
