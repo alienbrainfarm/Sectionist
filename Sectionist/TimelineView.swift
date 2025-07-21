@@ -23,6 +23,14 @@ struct TimelineView: View {
     @State private var hoveredSection: SongSection?
     @State private var isEditingMode = false
     @State private var showingSectionEditor = false
+    @State private var showingSectionTypePicker = false
+    @State private var sectionForTypePicker: SongSection?
+    
+    // Drag state
+    @State private var draggedSection: SongSection?
+    @State private var draggedEdge: SectionEdge = .none
+    @State private var dragOffset: CGFloat = 0
+    @State private var dragStartPosition: CGFloat = 0
     
     @StateObject private var analysisService = AnalysisService.shared
     @StateObject private var audioPlayer = AudioPlayerService.shared
@@ -54,11 +62,19 @@ struct TimelineView: View {
                         
                         Toggle("Edit Mode", isOn: $isEditingMode)
                             .toggleStyle(.switch)
+                            .help(isEditingMode ? "Exit edit mode" : "Enable interactive editing - drag section edges to resize, click sections to change type")
                         
                         Button("Re-analyze") {
                             startAnalysis()
                         }
                         .buttonStyle(.bordered)
+                        
+                        if isEditingMode {
+                            Text("💡 Drag section edges • Click to change type")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 8)
+                        }
                     }
                 }
             }
@@ -92,6 +108,15 @@ struct TimelineView: View {
         }
         .sheet(isPresented: $showingSectionEditor) {
             SectionEditingView(sections: $sections, totalDuration: totalDuration)
+        }
+        .popover(isPresented: $showingSectionTypePicker) {
+            if let section = sectionForTypePicker {
+                SectionTypePickerView(currentSection: section) { newName, newColor in
+                    updateSectionType(section, newName: newName, newColor: newColor)
+                    showingSectionTypePicker = false
+                    sectionForTypePicker = nil
+                }
+            }
         }
     }
     
@@ -271,18 +296,36 @@ struct TimelineView: View {
                                         availableWidth: availableWidth,
                                         isSelected: selectedSection?.id == section.id,
                                         isHovered: hoveredSection?.id == section.id,
-                                        isEditingMode: isEditingMode
+                                        isEditingMode: isEditingMode,
+                                        isDragging: draggedSection?.id == section.id,
+                                        dragOffset: draggedSection?.id == section.id ? dragOffset : 0,
+                                        onDragStart: { dragSection, edge in
+                                            handleSectionDragStart(section: dragSection, edge: edge, startPosition: 0)
+                                        },
+                                        onDragChange: { dragSection, offset in
+                                            handleSectionDragChange(offset: offset, availableWidth: availableWidth)
+                                        },
+                                        onDragEnd: {
+                                            handleSectionDragEnd()
+                                        }
                                     )
                                     .position(
                                         x: sectionXPosition(for: section, availableWidth: availableWidth),
                                         y: 25 // Center vertically in the 50pt height
                                     )
                                     .onTapGesture {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            selectedSection = selectedSection?.id == section.id ? nil : section
+                                        if isEditingMode {
+                                            // In edit mode, show type picker
+                                            sectionForTypePicker = section
+                                            showingSectionTypePicker = true
+                                        } else {
+                                            // Regular selection
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                selectedSection = selectedSection?.id == section.id ? nil : section
+                                            }
+                                            // Seek to section start time
+                                            audioPlayer.seek(to: section.startTime)
                                         }
-                                        // Seek to section start time
-                                        audioPlayer.seek(to: section.startTime)
                                     }
                                     .onHover { hovering in
                                         withAnimation(.easeInOut(duration: 0.15)) {
@@ -344,6 +387,11 @@ struct TimelineView: View {
     @ViewBuilder
     private func SectionContextMenu(section: SongSection) -> some View {
         if isEditingMode {
+            Button("Change Type") {
+                sectionForTypePicker = section
+                showingSectionTypePicker = true
+            }
+            
             Button("Edit Section") {
                 selectedSection = section
                 showingSectionEditor = true
@@ -359,6 +407,11 @@ struct TimelineView: View {
                 deleteSection(section)
             }
         } else {
+            Button("Change Type") {
+                sectionForTypePicker = section
+                showingSectionTypePicker = true
+            }
+            
             Button("Seek to Start") {
                 audioPlayer.seek(to: section.startTime)
             }
@@ -435,6 +488,80 @@ struct TimelineView: View {
             }
         }
     }
+    
+    // MARK: - Interactive Section Editing Methods
+    
+    private func updateSectionType(_ section: SongSection, newName: String, newColor: Color) {
+        guard let index = sections.firstIndex(where: { $0.id == section.id }) else { return }
+        
+        withAnimation(.easeInOut(duration: 0.2)) {
+            sections[index] = section.editedCopy(name: newName, color: newColor)
+            
+            // Update selected section if it matches
+            if selectedSection?.id == section.id {
+                selectedSection = sections[index]
+            }
+        }
+    }
+    
+    private func handleSectionDragStart(section: SongSection, edge: SectionEdge, startPosition: CGFloat) {
+        draggedSection = section
+        draggedEdge = edge
+        dragStartPosition = startPosition
+        dragOffset = 0
+    }
+    
+    private func handleSectionDragChange(offset: CGFloat, availableWidth: CGFloat) {
+        guard let draggedSection = draggedSection else { return }
+        
+        dragOffset = offset
+        
+        // Calculate new time based on drag offset
+        let timePerPixel = totalDuration / availableWidth
+        let timeOffset = offset * timePerPixel
+        
+        var newStartTime = draggedSection.startTime
+        var newEndTime = draggedSection.endTime
+        
+        switch draggedEdge {
+        case .start:
+            newStartTime = max(0, draggedSection.startTime + timeOffset)
+            // Ensure minimum section duration of 1 second
+            newEndTime = max(newStartTime + 1, draggedSection.endTime)
+        case .end:
+            newEndTime = min(totalDuration, draggedSection.endTime + timeOffset)
+            // Ensure minimum section duration of 1 second  
+            newStartTime = min(newEndTime - 1, draggedSection.startTime)
+        case .none:
+            return
+        }
+        
+        // Update the section with new times (temporarily during drag)
+        if let index = sections.firstIndex(where: { $0.id == draggedSection.id }) {
+            sections[index] = draggedSection.editedCopy(
+                startTime: newStartTime,
+                endTime: newEndTime
+            )
+        }
+    }
+    
+    private func handleSectionDragEnd() {
+        // Finalize the drag operation
+        if let draggedSection = draggedSection {
+            // Sort sections to maintain order
+            sections.sort { $0.startTime < $1.startTime }
+            
+            // Update selected section if it was dragged
+            if selectedSection?.id == draggedSection.id {
+                selectedSection = sections.first { $0.id == draggedSection.id }
+            }
+        }
+        
+        draggedSection = nil
+        draggedEdge = .none
+        dragOffset = 0
+        dragStartPosition = 0
+    }
 }
 
 /// Song section data model with enhanced functionality
@@ -500,6 +627,13 @@ struct SongSection: Identifiable, Equatable {
     static func == (lhs: SongSection, rhs: SongSection) -> Bool {
         return lhs.id == rhs.id
     }
+}
+
+/// Enumeration for section drag edges
+enum SectionEdge {
+    case none
+    case start
+    case end
 }
 
 #Preview {
@@ -657,6 +791,13 @@ struct EnhancedSectionBlock: View {
     let isSelected: Bool
     let isHovered: Bool
     let isEditingMode: Bool
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    
+    // Drag callbacks
+    let onDragStart: ((SongSection, SectionEdge) -> Void)?
+    let onDragChange: ((SongSection, CGFloat) -> Void)?
+    let onDragEnd: (() -> Void)?
     
     private var blockWidth: CGFloat {
         let sectionDuration = section.endTime - section.startTime
@@ -754,23 +895,44 @@ struct EnhancedSectionBlock: View {
                         .stroke(borderColor, lineWidth: borderLineWidth)
                 )
                 .overlay(
-                    // Editing mode indicators
+                    // Editing mode drag zones
                     Group {
                         if isEditingMode && (isSelected || isHovered) {
-                            VStack {
-                                HStack {
-                                    // Resize handles
-                                    Rectangle()
-                                        .fill(Color.white)
-                                        .frame(width: 2, height: 16)
-                                    Spacer()
-                                    Rectangle()
-                                        .fill(Color.white)
-                                        .frame(width: 2, height: 16)
-                                }
+                            HStack(spacing: 0) {
+                                // Left edge drag zone for start time
+                                DragZone(edge: .start)
+                                    .frame(width: max(8, blockWidth * 0.15))
+                                    .gesture(
+                                        DragGesture(coordinateSpace: .local)
+                                            .onChanged { value in
+                                                if draggedSection?.id != section.id {
+                                                    onDragStart?(section, .start)
+                                                }
+                                                onDragChange?(section, value.translation.x)
+                                            }
+                                            .onEnded { _ in
+                                                onDragEnd?()
+                                            }
+                                    )
+                                
                                 Spacer()
+                                
+                                // Right edge drag zone for end time
+                                DragZone(edge: .end)
+                                    .frame(width: max(8, blockWidth * 0.15))
+                                    .gesture(
+                                        DragGesture(coordinateSpace: .local)
+                                            .onChanged { value in
+                                                if draggedSection?.id != section.id {
+                                                    onDragStart?(section, .end)
+                                                }
+                                                onDragChange?(section, value.translation.x)
+                                            }
+                                            .onEnded { _ in
+                                                onDragEnd?()
+                                            }
+                                    )
                             }
-                            .padding(2)
                         }
                     }
                 )
@@ -929,5 +1091,54 @@ struct EnhancedPlaybackControls: View {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+/// Invisible drag zone for resizing section boundaries
+struct DragZone: View {
+    let edge: SectionEdge
+    @State private var isHovering = false
+    @State private var isDragging = false
+    
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .background(
+                Rectangle()
+                    .fill(Color.white.opacity(isHovering || isDragging ? 0.4 : 0.1))
+                    .cornerRadius(2)
+                    .animation(.easeInOut(duration: 0.15), value: isHovering || isDragging)
+            )
+            .overlay(
+                // Visual indicator when hovering or dragging
+                Group {
+                    if isHovering || isDragging {
+                        VStack(spacing: 2) {
+                            Rectangle()
+                                .frame(width: 2, height: 4)
+                                .fill(Color.white.opacity(0.9))
+                            Rectangle()
+                                .frame(width: 2, height: 4) 
+                                .fill(Color.white.opacity(0.9))
+                            Rectangle()
+                                .frame(width: 2, height: 4)
+                                .fill(Color.white.opacity(0.9))
+                        }
+                        .cornerRadius(1)
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    }
+                }
+            )
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovering = hovering
+                }
+            }
+            // Add a cursor hint for dragging
+            .background(
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+            )
     }
 }
