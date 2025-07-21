@@ -84,7 +84,6 @@ struct ContentView: View {
         songSections = backendData.toSongSections()
         analysisResults = backendData.toAnalysisData()
     }
-    }
 }
 
 struct HeaderView: View {
