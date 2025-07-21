@@ -74,7 +74,7 @@ struct SectionEditingView: View {
                 showingAddSection = true
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.small)
+            
         }
     }
     
@@ -154,13 +154,13 @@ struct SectionEditingView: View {
                 sortSectionsByTime()
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            
             
             Button("Merge Overlaps") {
                 mergeOverlappingSections()
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            
             
             Spacer()
             
@@ -169,7 +169,7 @@ struct SectionEditingView: View {
                 // This would require storing original data
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            
             .foregroundColor(.orange)
         }
     }
@@ -337,26 +337,26 @@ struct EditableSectionRow: View {
                         onFinishEdit(editingName)
                     }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.mini)
+                    
                     
                     Button("Cancel") {
                         onFinishEdit(section.name) // Revert to original name
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.mini)
+                    
                 } else {
                     Button("Edit") {
                         onStartEdit(section)
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.mini)
+                    
                 }
                 
                 Button("Delete") {
                     onDelete(section)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.mini)
+                
                 .foregroundColor(.red)
             }
         }

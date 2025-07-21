@@ -500,9 +500,13 @@ struct TimeRuler: View {
         }
     }
     
+    private var timeMarkCount: Int {
+        return Int(totalDuration/timeInterval) + 2
+    }
+    
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            ForEach(0..<Int(totalDuration/timeInterval) + 2, id: \.self) { index in
+            ForEach(0..<timeMarkCount, id: \.self) { index in
                 let time = TimeInterval(index) * timeInterval
                 
                 if time <= totalDuration {
@@ -517,7 +521,7 @@ struct TimeRuler: View {
                             .frame(width: 1, height: index % 2 == 0 ? 8 : 4)
                     }
                     
-                    if index < Int(totalDuration/timeInterval) + 1 {
+                    if index < timeMarkCount - 1 {
                         Spacer()
                     }
                 }
