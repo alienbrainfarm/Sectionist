@@ -62,11 +62,19 @@ struct TimelineView: View {
                         
                         Toggle("Edit Mode", isOn: $isEditingMode)
                             .toggleStyle(.switch)
+                            .help(isEditingMode ? "Exit edit mode" : "Enable interactive editing - drag section edges to resize, click sections to change type")
                         
                         Button("Re-analyze") {
                             startAnalysis()
                         }
                         .buttonStyle(.bordered)
+                        
+                        if isEditingMode {
+                            Text("💡 Drag section edges • Click to change type")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 8)
+                        }
                     }
                 }
             }
@@ -486,11 +494,13 @@ struct TimelineView: View {
     private func updateSectionType(_ section: SongSection, newName: String, newColor: Color) {
         guard let index = sections.firstIndex(where: { $0.id == section.id }) else { return }
         
-        sections[index] = section.editedCopy(name: newName, color: newColor)
-        
-        // Update selected section if it matches
-        if selectedSection?.id == section.id {
-            selectedSection = sections[index]
+        withAnimation(.easeInOut(duration: 0.2)) {
+            sections[index] = section.editedCopy(name: newName, color: newColor)
+            
+            // Update selected section if it matches
+            if selectedSection?.id == section.id {
+                selectedSection = sections[index]
+            }
         }
     }
     
@@ -526,35 +536,31 @@ struct TimelineView: View {
             return
         }
         
-        // Update the section with new times
-        updateSectionTime(draggedSection, newStart: newStartTime, newEnd: newEndTime)
+        // Update the section with new times (temporarily during drag)
+        if let index = sections.firstIndex(where: { $0.id == draggedSection.id }) {
+            sections[index] = draggedSection.editedCopy(
+                startTime: newStartTime,
+                endTime: newEndTime
+            )
+        }
     }
     
     private func handleSectionDragEnd() {
+        // Finalize the drag operation
+        if let draggedSection = draggedSection {
+            // Sort sections to maintain order
+            sections.sort { $0.startTime < $1.startTime }
+            
+            // Update selected section if it was dragged
+            if selectedSection?.id == draggedSection.id {
+                selectedSection = sections.first { $0.id == draggedSection.id }
+            }
+        }
+        
         draggedSection = nil
         draggedEdge = .none
         dragOffset = 0
         dragStartPosition = 0
-        
-        // Sort sections to maintain order
-        sections.sort { $0.startTime < $1.startTime }
-    }
-    
-    private func updateSectionTime(_ section: SongSection, newStart: TimeInterval, newEnd: TimeInterval) {
-        guard let index = sections.firstIndex(where: { $0.id == section.id }) else { return }
-        
-        let clampedStart = max(0, min(newStart, totalDuration))
-        let clampedEnd = max(clampedStart + 1, min(newEnd, totalDuration)) // Minimum 1 second duration
-        
-        sections[index] = section.editedCopy(
-            startTime: clampedStart,
-            endTime: clampedEnd
-        )
-        
-        // Update selected section if it matches
-        if selectedSection?.id == section.id {
-            selectedSection = sections[index]
-        }
     }
 }
 
@@ -899,7 +905,9 @@ struct EnhancedSectionBlock: View {
                                     .gesture(
                                         DragGesture(coordinateSpace: .local)
                                             .onChanged { value in
-                                                onDragStart?(section, .start)
+                                                if draggedSection?.id != section.id {
+                                                    onDragStart?(section, .start)
+                                                }
                                                 onDragChange?(section, value.translation.x)
                                             }
                                             .onEnded { _ in
@@ -915,7 +923,9 @@ struct EnhancedSectionBlock: View {
                                     .gesture(
                                         DragGesture(coordinateSpace: .local)
                                             .onChanged { value in
-                                                onDragStart?(section, .end)
+                                                if draggedSection?.id != section.id {
+                                                    onDragStart?(section, .end)
+                                                }
                                                 onDragChange?(section, value.translation.x)
                                             }
                                             .onEnded { _ in
@@ -1088,26 +1098,47 @@ struct EnhancedPlaybackControls: View {
 struct DragZone: View {
     let edge: SectionEdge
     @State private var isHovering = false
+    @State private var isDragging = false
     
     var body: some View {
         Rectangle()
             .fill(Color.clear)
             .background(
                 Rectangle()
-                    .fill(Color.white.opacity(isHovering ? 0.3 : 0.1))
+                    .fill(Color.white.opacity(isHovering || isDragging ? 0.4 : 0.1))
                     .cornerRadius(2)
+                    .animation(.easeInOut(duration: 0.15), value: isHovering || isDragging)
             )
             .overlay(
-                // Visual indicator when hovering
-                Rectangle()
-                    .frame(width: 2)
-                    .fill(Color.white.opacity(isHovering ? 0.8 : 0.4))
-                    .cornerRadius(1)
+                // Visual indicator when hovering or dragging
+                Group {
+                    if isHovering || isDragging {
+                        VStack(spacing: 2) {
+                            Rectangle()
+                                .frame(width: 2, height: 4)
+                                .fill(Color.white.opacity(0.9))
+                            Rectangle()
+                                .frame(width: 2, height: 4) 
+                                .fill(Color.white.opacity(0.9))
+                            Rectangle()
+                                .frame(width: 2, height: 4)
+                                .fill(Color.white.opacity(0.9))
+                        }
+                        .cornerRadius(1)
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    }
+                }
             )
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.15)) {
                     isHovering = hovering
                 }
             }
+            // Add a cursor hint for dragging
+            .background(
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+            )
     }
 }
