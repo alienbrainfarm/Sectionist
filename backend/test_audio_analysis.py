@@ -67,6 +67,7 @@ def test_analyze_audio_file_mocked(mock_chroma, mock_beat, mock_load):
         assert "duration" in result
         assert "tempo" in result
         assert "key" in result
+        assert "key_changes" in result
         assert "sections" in result
         assert "beats_detected" in result
 
@@ -74,6 +75,7 @@ def test_analyze_audio_file_mocked(mock_chroma, mock_beat, mock_load):
         assert isinstance(result["duration"], (int, float))
         assert isinstance(result["tempo"], (int, float))
         assert isinstance(result["key"], str)
+        assert isinstance(result["key_changes"], list)
         assert isinstance(result["sections"], list)
         assert isinstance(result["beats_detected"], int)
 
@@ -118,6 +120,76 @@ def test_song_section_structure():
         assert section["start"] >= 0
         assert section["end"] > section["start"]
         assert 0 <= section["confidence"] <= 1
+
+
+def test_key_detection_and_changes():
+    """Test enhanced key detection and key change detection."""
+    from example import detect_key_and_changes
+    
+    # Create test audio data with different harmonic content
+    sr = 22050
+    duration = 30  # 30 seconds to test key changes
+    t = np.linspace(0, duration, duration * sr)
+    
+    # First part: C major chord (C-E-G)
+    y1 = (0.5 * np.sin(2 * np.pi * 261.63 * t[:sr*10]) +  # C4
+          0.3 * np.sin(2 * np.pi * 329.63 * t[:sr*10]) +  # E4
+          0.3 * np.sin(2 * np.pi * 392.00 * t[:sr*10]))   # G4
+    
+    # Second part: G major chord (G-B-D) 
+    y2 = (0.5 * np.sin(2 * np.pi * 392.00 * t[:sr*10]) +  # G4
+          0.3 * np.sin(2 * np.pi * 493.88 * t[:sr*10]) +  # B4
+          0.3 * np.sin(2 * np.pi * 587.33 * t[:sr*10]))   # D5
+          
+    # Third part: Back to C major
+    y3 = (0.5 * np.sin(2 * np.pi * 261.63 * t[:sr*10]) +  # C4
+          0.3 * np.sin(2 * np.pi * 329.63 * t[:sr*10]) +  # E4
+          0.3 * np.sin(2 * np.pi * 392.00 * t[:sr*10]))   # G4
+    
+    # Combine all parts
+    y = np.concatenate([y1, y2, y3])
+    
+    # Test key detection
+    detected_key, key_changes = detect_key_and_changes(y, sr)
+    
+    # Verify key detection returns valid results
+    assert isinstance(detected_key, str)
+    assert "major" in detected_key or "minor" in detected_key
+    assert isinstance(key_changes, list)
+    
+    # Each key change should have proper structure
+    for change in key_changes:
+        assert isinstance(change, dict)
+        assert "timestamp" in change
+        assert "from_key" in change 
+        assert "to_key" in change
+        assert "confidence" in change
+        assert isinstance(change["timestamp"], (int, float))
+        assert isinstance(change["from_key"], str)
+        assert isinstance(change["to_key"], str)
+        assert isinstance(change["confidence"], (int, float))
+        assert 0 <= change["confidence"] <= 1
+
+
+def test_key_profiles_coverage():
+    """Test that all 24 keys are properly defined."""
+    from example import detect_key_and_changes
+    
+    # Create simple test audio
+    sr = 22050
+    t = np.linspace(0, 5, 5 * sr)
+    y = 0.5 * np.sin(2 * np.pi * 440 * t)  # Simple A4 tone
+    
+    # Test that function executes without error
+    detected_key, key_changes = detect_key_and_changes(y, sr)
+    
+    # Should detect one of the 24 possible keys
+    expected_keys = []
+    note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    for note in note_names:
+        expected_keys.extend([f"{note} major", f"{note} minor"])
+    
+    assert detected_key in expected_keys
 
 
 if __name__ == "__main__":
