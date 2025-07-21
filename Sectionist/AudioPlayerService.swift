@@ -201,8 +201,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     // MARK: - Cleanup
     
     deinit {
-        stop()
         // Note: AVAudioSession cleanup is iOS-specific and not needed on macOS
+        // stop() // Unfortunatley this causes issues on macOS, so we don't call it here
     }
 }
 
