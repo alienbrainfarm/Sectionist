@@ -231,7 +231,7 @@ def label_sections_frame_based(
     return sections
 
 
-def detect_key_and_changes(y, sr, chroma=None):
+def detect_key_and_changes(y, sr, chroma=None, hop_length=2048):
     """
     Detect the key and key changes throughout an audio file.
 
@@ -243,6 +243,7 @@ def detect_key_and_changes(y, sr, chroma=None):
         y (np.array): Audio time series
         sr (int): Sample rate
         chroma (np.array, optional): Pre-computed chroma features
+        hop_length (int): Hop length for consistent feature extraction
 
     Returns:
         tuple: (detected_key, key_changes)
@@ -251,7 +252,7 @@ def detect_key_and_changes(y, sr, chroma=None):
     """
     # Compute chroma features if not provided
     if chroma is None:
-        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
 
     # Krumhansl-Schmuckler key profiles (24 keys: 12 major + 12 minor)
     # Major key profiles based on probe tone experiments
@@ -301,12 +302,12 @@ def detect_key_and_changes(y, sr, chroma=None):
     detected_key = key_names[overall_key_idx]
 
     # Detect key changes by analyzing segments
-    key_changes = detect_key_changes_in_segments(chroma, key_profiles, key_names, sr)
+    key_changes = detect_key_changes_in_segments(chroma, key_profiles, key_names, sr, hop_length)
 
     return detected_key, key_changes
 
 
-def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr):
+def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr, hop_length=2048):
     """
     Detect key changes by analyzing audio in segments.
 
@@ -315,17 +316,21 @@ def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr):
         key_profiles (np.array): All 24 key profiles
         key_names (list): Names of all keys
         sr (int): Sample rate
+        hop_length (int): Hop length used for chroma calculation
 
     Returns:
         list: List of key changes with timestamps
     """
     # Calculate segment duration (~10 seconds per segment)
-    hop_length = 2048  # Standard hop length used in chroma calculation
     frames_per_second = sr / hop_length
     segment_duration_seconds = 10.0
     segment_size = int(segment_duration_seconds * frames_per_second)
 
+    print(f"Key change detection: chroma shape={chroma.shape}, hop_length={hop_length}")
+    print(f"Frames per second: {frames_per_second:.2f}, segment_size: {segment_size}")
+
     if chroma.shape[1] < segment_size * 2:  # Need at least 2 segments
+        print("Not enough frames for key change detection")
         return []
 
     key_changes = []
@@ -335,6 +340,11 @@ def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr):
     for start_frame in range(0, chroma.shape[1] - segment_size, segment_size // 2):
         end_frame = min(start_frame + segment_size, chroma.shape[1])
         segment_chroma = chroma[:, start_frame:end_frame]
+
+        # Debug: log segment processing  
+        if len(key_changes) == 0 or len(key_changes) < 3:  # Only log first few
+            timestamp_debug = start_frame * hop_length / sr
+            print(f"  Processing segment {len(key_changes)+1}: frames {start_frame}-{end_frame}, timestamp {timestamp_debug:.2f}s")
 
         # Calculate mean chroma for this segment
         segment_chroma_mean = np.mean(segment_chroma, axis=1)
@@ -370,6 +380,11 @@ def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr):
                 )
 
         previous_key = segment_key
+
+    print(f"Key changes detected: {len(key_changes)}")
+    if key_changes:
+        print(f"First key change: {key_changes[0]['timestamp']}s")
+        print(f"Last key change: {key_changes[-1]['timestamp']}s")
 
     return key_changes
 
@@ -560,25 +575,38 @@ def analyze_audio_file(file_path):
 
     print(f"Loading audio file: {file_path}")
 
-    # Load audio file
-    y, sr = librosa.load(file_path)
+    # Load audio file with explicit parameters to ensure full duration is loaded
+    y, sr = librosa.load(file_path, sr=22050, duration=None)
     duration = librosa.get_duration(y=y, sr=sr)
 
+    print(f"Audio array shape: {y.shape}")
     print(f"Duration: {duration:.2f} seconds")
     print(f"Sample rate: {sr} Hz")
+    print(f"Expected samples for duration: {duration * sr:.0f}")
+
+    # Use consistent hop_length for all feature extractions
+    hop_length = 2048  # ~0.09 seconds at 22050 Hz
 
     # Basic tempo estimation
-    tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+    tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=hop_length)
 
-    # Enhanced key estimation using chroma features
-    chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-    detected_key, key_changes = detect_key_and_changes(y, sr, chroma)
+    # Enhanced key estimation using chroma features with consistent hop_length
+    chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
+    detected_key, key_changes = detect_key_and_changes(y, sr, chroma, hop_length)
+    
+    # Safeguard: Filter out any key changes beyond the actual audio duration
+    key_changes = [kc for kc in key_changes if kc['timestamp'] <= duration]
+    print(f"Key changes after duration filter: {len(key_changes)}")
 
     # Advanced song structure segmentation using music information retrieval
     sections = analyze_song_structure(y, sr)
 
-    # Chord detection and mapping
-    chords = detect_chords(y, sr)
+    # Chord detection and mapping with consistent hop_length
+    chords = detect_chords(y, sr, hop_length)
+    
+    # Safeguard: Filter out any chords beyond the actual audio duration  
+    chords = [chord for chord in chords if chord['start'] <= duration and chord['end'] <= duration]
+    print(f"Chords after duration filter: {len(chords)}")
 
     return {
         "file_path": file_path,
