@@ -26,34 +26,14 @@ struct AnalysisResultsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
-            if analysisResults == nil {
-                // Only load mock data if no real analysis has been done
-                loadMockAnalysisData()
-            }
+            // Analysis results will be populated when analysis completes
+            // No mock data needed - real backend data will be used
         }
         .alert("Analysis Error", isPresented: $showingError) {
             Button("OK") { }
         } message: {
             Text(errorMessage ?? "An unknown error occurred")
         }
-    }
-    
-    private func loadMockAnalysisData() {
-        // Mock analysis data
-        analysisResults = AnalysisData(
-            detectedKey: "C Major",
-            bpm: 120,
-            keyChanges: [
-                KeyChange(time: 90, newKey: "F Major"),
-                KeyChange(time: 165, newKey: "C Major")
-            ],
-            chordProgression: [
-                ChordInfo(startTime: 0, chord: "C", duration: 2.0),
-                ChordInfo(startTime: 2, chord: "Am", duration: 2.0),
-                ChordInfo(startTime: 4, chord: "F", duration: 2.0),
-                ChordInfo(startTime: 6, chord: "G", duration: 2.0)
-            ]
-        )
     }
     
     @ViewBuilder
