@@ -908,7 +908,7 @@ struct EnhancedSectionBlock: View {
                                                 if !isDragging {
                                                     onDragStart?(section, .start)
                                                 }
-                                                onDragChange?(section, value.translation.x)
+                                                onDragChange?(section, value.translation.width)
                                             }
                                             .onEnded { _ in
                                                 onDragEnd?()
@@ -926,7 +926,7 @@ struct EnhancedSectionBlock: View {
                                                 if !isDragging {
                                                     onDragStart?(section, .end)
                                                 }
-                                                onDragChange?(section, value.translation.x)
+                                                onDragChange?(section, value.translation.width)
                                             }
                                             .onEnded { _ in
                                                 onDragEnd?()
