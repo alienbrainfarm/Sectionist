@@ -63,8 +63,8 @@ Learning new songs is time-consuming for musicians, especially when breaking dow
 
 ## Technical Requirements
 
-### Frontend (SwiftUI)
-- macOS app with drag-and-drop or file picker for audio.
+### Frontend (Python/PyQt6)
+- Cross-platform app (Windows, macOS, Linux) with drag-and-drop or file picker for audio.
 - Timeline view showing labeled song sections.
 - Display of detected key and chords.
 - Responsive UI for analysis progress and errors.
@@ -72,7 +72,7 @@ Learning new songs is time-consuming for musicians, especially when breaking dow
 ### Backend (Python)
 - Audio analysis using MIR/ML libraries (e.g., librosa, madmom, Essentia).
 - Song segmentation, key detection, chord estimation.
-- REST (localhost HTTP) or IPC interface for SwiftUI to call backend.
+- REST (localhost HTTP) interface for Python frontend to call backend.
 - Local inference (no external API calls).
 
 ### Data Handling
@@ -134,6 +134,10 @@ The core functionality outlined in this PRD has been successfully implemented ah
 - Cloud processing.
 - Mobile (iOS) version.
 - Advanced music theory features (e.g., custom tuning, tempo mapping).
+
+## Project Evolution Note
+
+**Frontend Migration (2024):** The project has migrated from Swift/SwiftUI (macOS-only) to Python/PyQt6 (cross-platform) to support Windows, macOS, and Linux. The Swift implementation has been archived in `Swift-frontend-archived/` for reference. This change enables broader platform support while maintaining the same core functionality.
 
 ---
 
