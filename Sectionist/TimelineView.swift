@@ -905,7 +905,7 @@ struct EnhancedSectionBlock: View {
                                     .gesture(
                                         DragGesture(coordinateSpace: .local)
                                             .onChanged { value in
-                                                if draggedSection?.id != section.id {
+                                                if !isDragging {
                                                     onDragStart?(section, .start)
                                                 }
                                                 onDragChange?(section, value.translation.x)
@@ -923,7 +923,7 @@ struct EnhancedSectionBlock: View {
                                     .gesture(
                                         DragGesture(coordinateSpace: .local)
                                             .onChanged { value in
-                                                if draggedSection?.id != section.id {
+                                                if !isDragging {
                                                     onDragStart?(section, .end)
                                                 }
                                                 onDragChange?(section, value.translation.x)

@@ -16,7 +16,6 @@ struct SectionEditingView: View {
     @State private var showingAddSection = false
     @State private var showingDeleteConfirmation = false
     @State private var sectionToDelete: SongSection?
-    @State private var draggedSection: SongSection?
     @State private var editingName = ""
     
     var body: some View {
