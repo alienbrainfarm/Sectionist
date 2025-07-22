@@ -4,7 +4,7 @@ This document describes the continuous integration and continuous deployment (CI
 
 ## Overview
 
-The CI/CD pipeline is implemented using GitHub Actions and provides automated testing, code quality checks, and integration testing for both the Python backend and SwiftUI frontend components.
+The CI/CD pipeline is implemented using GitHub Actions and provides automated testing, code quality checks, and integration testing for the Python backend and Python frontend components.
 
 ## Pipeline Components
 
@@ -20,11 +20,12 @@ The CI/CD pipeline is implemented using GitHub Actions and provides automated te
   - Coverage reporting with Codecov
 
 ### 2. Frontend Testing (`test-frontend`)
-- **Runs on**: macOS Latest
+- **Runs on**: Cross-platform (Ubuntu, Windows, macOS)
 - **Features**:
-  - Xcode project building
-  - SwiftUI unit and UI tests
-  - Derived data caching
+  - Python PyQt6 application testing
+  - Frontend unit tests
+  - UI integration tests
+  - Dependency validation
 
 ### 3. Code Quality (`lint-and-format`)
 - **Runs on**: Ubuntu Latest

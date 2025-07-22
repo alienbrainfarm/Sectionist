@@ -1,30 +1,38 @@
-# Section Labeling and Editing UI - Implementation Summary
+# Section Labeling and Editing UI - Implementation Status
 
 ## Overview
 
-This implementation adds comprehensive section labeling and editing capabilities to the Sectionist application, allowing users to manually edit, create, and customize audio sections beyond the automatic analysis.
+This document describes the section labeling and editing capabilities for the Sectionist application. The current Python frontend provides basic section viewing and analysis display, with enhanced editing features planned for future development.
 
-## Key Features Implemented
+## Current Status (Python Frontend)
 
-### 1. Section Editing View (`SectionEditingView.swift`)
+### ✅ Implemented Features
+- **Section visualization** in timeline view
+- **Analysis results display** with section information
+- **Basic section information** (name, start/end times, analysis confidence)
+
+### 🔜 Planned Features (Future Development)
+
+The following features were implemented in the archived Swift frontend and are planned for the Python frontend:
+
+#### 1. Enhanced Section Editing Interface
 - **Full-featured section editor** with comprehensive editing capabilities
-- **Inline name editing** with double-click to rename
+- **Inline name editing** with intuitive interaction
 - **Time boundary editing** with validation and time field inputs
-- **Color customization** with visual color picker
-- **Add/Delete sections** with confirmation dialogs
+- **Visual customization** options
+- **Add/Delete sections** with user-friendly dialogs
 - **Section management** (duplicate, sort, merge overlaps)
-- **Visual feedback** for user edits vs. original analysis
 
-### 2. Enhanced Timeline View
+#### 2. Interactive Timeline Editing
 - **Editing mode toggle** to switch between viewing and editing
 - **Context menus** for quick section operations
 - **Visual indicators** for edited sections
-- **Integration** with the section editor
+- **Drag-and-drop** section manipulation
 
-### 3. Updated Data Model
-- **Immutable design** with `editedCopy()` method for modifications
-- **Edit tracking** with `isUserEdited` and `originalName` properties
-- **Backward compatibility** with existing backend analysis
+#### 3. Local Database Integration
+- **Persistent storage** for user edits and customizations
+- **SQLite database** for storing modified song sections
+- **User annotations** and custom section labels
 
 ## User Interface Components
 

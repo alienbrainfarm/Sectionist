@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Sectionist** is a macOS application designed for musicians and music learners. It analyzes a song’s audio file and provides a structured overview of the song, automatically segmenting it into sections (e.g., intro, verse, chorus), detecting key changes, and mapping out basic chords. The application leverages a SwiftUI frontend for native Mac experience and a Python backend for music information retrieval (MIR) and machine learning (ML) processing.
+**Sectionist** is a cross-platform application designed for musicians and music learners. It analyzes a song's audio file and provides a structured overview of the song, automatically segmenting it into sections (e.g., intro, verse, chorus), detecting key changes, and mapping out basic chords. The application leverages a Python frontend with PyQt6 for cross-platform compatibility and a Python backend for music information retrieval (MIR) and machine learning (ML) processing.
 
 ---
 
