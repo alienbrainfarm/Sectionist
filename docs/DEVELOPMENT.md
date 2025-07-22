@@ -15,14 +15,17 @@ This guide provides detailed information for setting up and developing Sectionis
 
 ## Architecture Overview
 
-Sectionist uses a hybrid architecture with a native SwiftUI frontend and a Python backend:
+## Architecture Overview
+
+Sectionist uses a unified Python architecture with a cross-platform PyQt6 frontend and a Python backend:
 
 ```
-┌─────────────────┐    HTTP/IPC     ┌─────────────────┐
+┌─────────────────┐    HTTP API     ┌─────────────────┐
 │                 │◄──────────────►│                 │
-│  SwiftUI Frontend│                │ Python Backend  │
-│   (macOS App)   │                │ (Audio Analysis)│
-│                 │                │                 │
+│ Python Frontend │                │ Python Backend  │
+│  (PyQt6 GUI)    │                │ (Audio Analysis)│
+│ Windows/macOS/  │                │                 │
+│     Linux       │                │                 │
 └─────────────────┘                └─────────────────┘
          │                                   │
          ▼                                   ▼
@@ -34,20 +37,45 @@ Sectionist uses a hybrid architecture with a native SwiftUI frontend and a Pytho
 
 ### Key Design Decisions
 
+- **Cross-Platform**: Runs on Windows, macOS, and Linux
 - **Local Processing**: All audio analysis happens locally for privacy
-- **Separation of Concerns**: UI logic in Swift, audio processing in Python
+- **Unified Language**: Both frontend and backend use Python for easier maintenance
 - **Asynchronous Communication**: Non-blocking audio analysis
-- **File-based Exchange**: Minimal data transfer between frontend and backend
+- **HTTP API**: RESTful communication between components
 
 ## Frontend Development
 
-### SwiftUI Project Structure (Current Implementation)
+### Python/PyQt6 Project Structure (Current Active Development)
 
 ```
-Sectionist/
-├── Sectionist.xcodeproj
-├── SectionistApp.swift           # App entry point ✅ IMPLEMENTED
-├── ContentView.swift             # Main view ✅ IMPLEMENTED  
+frontend/
+├── sectionist_gui.py              # Main application ✅ IMPLEMENTED
+├── requirements.txt               # Dependencies ✅ IMPLEMENTED
+├── setup.sh                       # Setup script ✅ IMPLEMENTED
+└── README.md                      # Documentation ✅ IMPLEMENTED
+```
+
+### Development Setup
+
+1. **Install Python 3.8+**
+2. **Set up virtual environment**:
+   ```bash
+   cd frontend/
+   python3 -m venv venv
+   source venv/bin/activate  # Windows: venv\Scripts\activate
+   ```
+3. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. **Run the application**:
+   ```bash
+   python sectionist_gui.py
+   ```
+
+### Archived Swift Frontend (Reference Only)
+
+The original Swift/SwiftUI implementation has been moved to `Swift-frontend-archived/` for reference. It is no longer actively developed.  
 ├── AnalysisService.swift         # Backend communication ✅ IMPLEMENTED
 ├── AnalysisResultsView.swift     # Analysis results display ✅ IMPLEMENTED
 ├── TimelineView.swift            # Timeline visualization ✅ IMPLEMENTED
