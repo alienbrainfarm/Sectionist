@@ -29,7 +29,7 @@ try:
         QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, 
         QPushButton, QLabel, QFileDialog, QProgressBar, QTextEdit,
         QSlider, QComboBox, QSplitter, QFrame, QGroupBox, QMessageBox,
-        QGridLayout, QSpacerItem, QSizePolicy, QMenuBar, QMenu
+        QGridLayout, QSpacerItem, QSizePolicy, QMenuBar, QMenu, QInputDialog
     )
     from PyQt6.QtCore import (
         Qt, QThread, pyqtSignal, QTimer, QMimeData, QUrl
@@ -181,6 +181,8 @@ class TimelineWidget(QWidget):
     """Timeline visualization widget."""
     
     section_clicked = pyqtSignal(float)  # Emit timestamp when section is clicked
+    section_renamed = pyqtSignal(int, str)  # Emit section index and new name
+    section_resized = pyqtSignal(int, float, float)  # Emit section index, new start, new end
     
     def __init__(self):
         super().__init__()
@@ -195,6 +197,13 @@ class TimelineWidget(QWidget):
                 border-radius: 4px;
             }
         """)
+        
+        # For section editing
+        self.editing_section = -1
+        self.resize_mode = None  # 'start', 'end', or None
+        self.resize_section = -1
+        self.last_click_time = 0
+        self.drag_start_x = 0
         
         # Define consistent colors for section types
         self.section_colors = {
@@ -303,12 +312,123 @@ class TimelineWidget(QWidget):
             painter.setPen(QPen(QColor(255, 0, 0), 2))
             painter.drawLine(pos_x, 0, pos_x, rect.height())
     
+    def get_section_at_position(self, x):
+        """Get section index at given x position."""
+        if not self.sections or self.duration <= 0:
+            return -1
+        
+        timestamp = (x / self.width()) * self.duration
+        
+        for i, section in enumerate(self.sections):
+            start = section.get('start', 0)
+            end = section.get('end', 0)
+            if start <= timestamp <= end:
+                return i
+        return -1
+    
+    def get_resize_mode(self, x, section_idx):
+        """Determine if mouse is near section edge for resizing."""
+        if section_idx < 0 or section_idx >= len(self.sections):
+            return None
+        
+        section = self.sections[section_idx]
+        start_time = section.get('start', 0)
+        end_time = section.get('end', 0)
+        
+        start_x = int((start_time / self.duration) * self.width())
+        end_x = int((end_time / self.duration) * self.width())
+        
+        # Check if near edges (within 5 pixels)
+        if abs(x - start_x) <= 5:
+            return 'start'
+        elif abs(x - end_x) <= 5:
+            return 'end'
+        return None
+    
     def mousePressEvent(self, event):
-        """Handle mouse clicks on the timeline."""
-        if self.duration > 0:
-            click_x = event.position().x()
-            timestamp = (click_x / self.width()) * self.duration
-            self.section_clicked.emit(timestamp)
+        """Handle mouse press events."""
+        import time
+        
+        current_time = time.time()
+        x = event.position().x()
+        section_idx = self.get_section_at_position(x)
+        
+        # Check for double-click
+        if current_time - self.last_click_time < 0.3 and section_idx >= 0:
+            self.start_rename_section(section_idx)
+            return
+        
+        self.last_click_time = current_time
+        
+        if section_idx >= 0:
+            # Check if near section edge for resizing
+            resize_mode = self.get_resize_mode(x, section_idx)
+            if resize_mode:
+                self.resize_mode = resize_mode
+                self.resize_section = section_idx
+                self.drag_start_x = x
+                self.setCursor(Qt.CursorShape.SizeHorCursor)
+            else:
+                # Regular section click
+                if self.duration > 0:
+                    timestamp = (x / self.width()) * self.duration
+                    self.section_clicked.emit(timestamp)
+        else:
+            # Click outside sections
+            if self.duration > 0:
+                timestamp = (x / self.width()) * self.duration
+                self.section_clicked.emit(timestamp)
+    
+    def mouseMoveEvent(self, event):
+        """Handle mouse move events."""
+        x = event.position().x()
+        
+        if self.resize_mode and self.resize_section >= 0:
+            # Handle section resizing
+            timestamp = (x / self.width()) * self.duration
+            section = self.sections[self.resize_section]
+            
+            if self.resize_mode == 'start':
+                new_start = max(0, min(timestamp, section.get('end', 0) - 1))
+                self.section_resized.emit(self.resize_section, new_start, section.get('end', 0))
+            elif self.resize_mode == 'end':
+                new_end = max(section.get('start', 0) + 1, min(timestamp, self.duration))
+                self.section_resized.emit(self.resize_section, section.get('start', 0), new_end)
+        else:
+            # Update cursor based on position
+            section_idx = self.get_section_at_position(x)
+            if section_idx >= 0:
+                resize_mode = self.get_resize_mode(x, section_idx)
+                if resize_mode:
+                    self.setCursor(Qt.CursorShape.SizeHorCursor)
+                else:
+                    self.setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+    
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release events."""
+        self.resize_mode = None
+        self.resize_section = -1
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+    
+    def start_rename_section(self, section_idx):
+        """Start renaming a section."""
+        if section_idx < 0 or section_idx >= len(self.sections):
+            return
+        
+        from PyQt6.QtWidgets import QInputDialog
+        
+        current_name = self.sections[section_idx].get('name', 'Section')
+        new_name, ok = QInputDialog.getText(
+            self, 
+            'Rename Section', 
+            f'Enter new name for section {section_idx + 1}:',
+            text=current_name
+        )
+        
+        if ok and new_name.strip():
+            self.section_renamed.emit(section_idx, new_name.strip())
 
 
 class SectionistMainWindow(QMainWindow):
@@ -381,6 +501,8 @@ class SectionistMainWindow(QMainWindow):
         # Timeline widget
         self.timeline = TimelineWidget()
         self.timeline.section_clicked.connect(self.seek_to_position)
+        self.timeline.section_renamed.connect(self.rename_section)
+        self.timeline.section_resized.connect(self.resize_section)
         timeline_layout.addWidget(self.timeline)
         
         # Playback controls
@@ -912,6 +1034,39 @@ class SectionistMainWindow(QMainWindow):
         visible = self.details_group.isVisible()
         self.details_group.setVisible(not visible)
         self.toggle_details_action.setText("Show Analysis Details Panel" if not visible else "Hide Analysis Details Panel")
+    
+    def rename_section(self, section_idx, new_name):
+        """Rename a section."""
+        if not self.analysis_results or section_idx < 0:
+            return
+        
+        sections = self.analysis_results.get('analysis', {}).get('sections', [])
+        if section_idx < len(sections):
+            sections[section_idx]['name'] = new_name
+            
+            # Update displays
+            self.display_results(self.analysis_results)
+            self.timeline.set_sections(sections)
+            
+            # Mark as modified (could save automatically or flag for save)
+            self.status_label.setText(f"Section {section_idx + 1} renamed to '{new_name}'")
+    
+    def resize_section(self, section_idx, new_start, new_end):
+        """Resize a section."""
+        if not self.analysis_results or section_idx < 0:
+            return
+        
+        sections = self.analysis_results.get('analysis', {}).get('sections', [])
+        if section_idx < len(sections):
+            sections[section_idx]['start'] = new_start
+            sections[section_idx]['end'] = new_end
+            
+            # Update displays
+            self.display_results(self.analysis_results)
+            self.timeline.set_sections(sections)
+            
+            # Mark as modified
+            self.status_label.setText(f"Section {section_idx + 1} resized")
 
 
 def main():
