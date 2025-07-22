@@ -138,7 +138,7 @@ pytest
 
 ### API Development
 
-The backend is designed to work with the SwiftUI frontend through a REST API. Future development will include Flask endpoints for:
+The backend is designed to work with the Python frontend through a REST API. Current and future Flask endpoints include:
 
 - `/analyze` - Analyze uploaded audio files
 - `/status` - Check analysis status

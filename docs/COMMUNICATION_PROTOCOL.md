@@ -1,12 +1,12 @@
 # Sectionist Frontend-Backend Communication Protocol
 
-This document describes the communication protocol between the SwiftUI frontend and Python backend in the Sectionist application.
+This document describes the communication protocol between the Python frontend and Python backend in the Sectionist application.
 
 ## Overview
 
 The Sectionist application uses a local HTTP server architecture for communication between components:
 
-- **Frontend**: SwiftUI macOS application
+- **Frontend**: Python PyQt6 cross-platform application
 - **Backend**: Python Flask HTTP server running locally
 - **Communication**: HTTP REST API over localhost
 - **Data Format**: JSON
@@ -168,7 +168,7 @@ interface SongSection {
 
 ### HTTP Client Service
 
-The SwiftUI frontend includes an `AnalysisService` class that handles all communication with the backend:
+The current Python frontend includes HTTP communication functionality that handles all backend requests, while the archived SwiftUI frontend used an `AnalysisService` class.
 
 ```swift
 class AnalysisService: ObservableObject {

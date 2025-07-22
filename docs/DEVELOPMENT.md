@@ -15,14 +15,17 @@ This guide provides detailed information for setting up and developing Sectionis
 
 ## Architecture Overview
 
-Sectionist uses a hybrid architecture with a native SwiftUI frontend and a Python backend:
+## Architecture Overview
+
+Sectionist uses a unified Python architecture with a cross-platform PyQt6 frontend and a Python backend:
 
 ```
-┌─────────────────┐    HTTP/IPC     ┌─────────────────┐
+┌─────────────────┐    HTTP API     ┌─────────────────┐
 │                 │◄──────────────►│                 │
-│  SwiftUI Frontend│                │ Python Backend  │
-│   (macOS App)   │                │ (Audio Analysis)│
-│                 │                │                 │
+│ Python Frontend │                │ Python Backend  │
+│  (PyQt6 GUI)    │                │ (Audio Analysis)│
+│ Windows/macOS/  │                │                 │
+│     Linux       │                │                 │
 └─────────────────┘                └─────────────────┘
          │                                   │
          ▼                                   ▼
@@ -34,81 +37,45 @@ Sectionist uses a hybrid architecture with a native SwiftUI frontend and a Pytho
 
 ### Key Design Decisions
 
+- **Cross-Platform**: Runs on Windows, macOS, and Linux
 - **Local Processing**: All audio analysis happens locally for privacy
-- **Separation of Concerns**: UI logic in Swift, audio processing in Python
+- **Unified Language**: Both frontend and backend use Python for easier maintenance
 - **Asynchronous Communication**: Non-blocking audio analysis
-- **File-based Exchange**: Minimal data transfer between frontend and backend
+- **HTTP API**: RESTful communication between components
 
 ## Frontend Development
 
-### SwiftUI Project Structure (Current Implementation)
+### Python/PyQt6 Project Structure (Current Active Development)
 
 ```
-Sectionist/
-├── Sectionist.xcodeproj
-├── SectionistApp.swift           # App entry point ✅ IMPLEMENTED
-├── ContentView.swift             # Main view ✅ IMPLEMENTED  
-├── AnalysisService.swift         # Backend communication ✅ IMPLEMENTED
-├── AnalysisResultsView.swift     # Analysis results display ✅ IMPLEMENTED
-├── TimelineView.swift            # Timeline visualization ✅ IMPLEMENTED
-├── Assets.xcassets               # App resources ✅ IMPLEMENTED
-├── Sectionist.entitlements      # App permissions ✅ IMPLEMENTED
-├── Preview Content/              # SwiftUI previews ✅ IMPLEMENTED
-└── README.md                     # Frontend documentation ✅ IMPLEMENTED
-```
-
-**Note**: The current implementation uses a flatter structure than originally planned, with all Swift files in the root Sectionist/ directory rather than organized into subdirectories.
-
-### Key SwiftUI Components (Implemented)
-
-#### TimelineView ✅ IMPLEMENTED
-- Displays song sections on a timeline with interactive visualization
-- Handles user interaction for section navigation
-- Shows waveform-style visualization of audio structure
-- Integrates with AnalysisService for real-time updates
-
-#### AnalysisService ✅ IMPLEMENTED  
-- Manages HTTP communication with Python backend
-- Handles health checks and server status monitoring
-- Processes audio file uploads and analysis requests
-- Provides async/await interface for SwiftUI views
-
-#### AnalysisResultsView ✅ IMPLEMENTED
-- Displays structured analysis results from backend
-- Shows detected sections, key, tempo, and confidence scores
-- Provides user-friendly formatting of technical analysis data
-
-#### SongAnalysis Model
-```swift
-struct SongAnalysis: Codable {
-    let duration: TimeInterval
-    let key: String
-    let tempo: Double
-    let sections: [Section]
-    let chords: [Chord]?
-}
-
-struct Section: Codable, Identifiable {
-    let id = UUID()
-    let label: String
-    let startTime: TimeInterval
-    let endTime: TimeInterval
-    let confidence: Double
-}
+frontend/
+├── sectionist_gui.py              # Main application ✅ IMPLEMENTED
+├── requirements.txt               # Dependencies ✅ IMPLEMENTED
+├── setup.sh                       # Setup script ✅ IMPLEMENTED
+└── README.md                      # Documentation ✅ IMPLEMENTED
 ```
 
 ### Development Setup
 
-1. **Xcode Requirements**:
-   - Xcode 14.0+ 
-   - macOS deployment target: 12.0+
-   - Swift 5.7+
+1. **Install Python 3.8+**
+2. **Set up virtual environment**:
+   ```bash
+   cd frontend/
+   python3 -m venv venv
+   source venv/bin/activate  # Windows: venv\Scripts\activate
+   ```
+3. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. **Run the application**:
+   ```bash
+   python sectionist_gui.py
+   ```
 
-2. **Dependencies**:
-   - No external Swift packages initially
-   - Consider adding later: Charts framework for visualization
+### Archived Swift Frontend (Reference Only)
 
-3. **Build Configuration**:
+The original Swift/SwiftUI implementation has been moved to `Swift-frontend-archived/` for reference. It is no longer actively developed.
    ```bash
    cd Sectionist/
    open Sectionist.xcodeproj

@@ -24,11 +24,10 @@ By participating in this project, you agree to maintain a respectful, inclusive,
 
 Before you start contributing, make sure you have:
 
-- **macOS** (required for SwiftUI development)
-- **Xcode 14+** with command line tools
-- **Python 3.8+** 
+- **Python 3.8+** (primary development language)
 - **Git** for version control
-- Basic familiarity with Swift/SwiftUI and Python
+- Basic familiarity with Python and PyQt6
+- Cross-platform development environment (Windows, macOS, or Linux)
 
 ### First Time Setup
 
@@ -85,21 +84,36 @@ Before you start contributing, make sure you have:
 
 ## Setting Up Your Development Environment
 
-### Frontend (SwiftUI) ✅ READY TO USE
+### Frontend (Python/PyQt6) ✅ ACTIVE DEVELOPMENT
 
-The frontend is a fully implemented macOS SwiftUI application.
+The frontend is a cross-platform Python application using PyQt6.
 
-1. **Open the Xcode project**:
+1. **Set up the Python frontend**:
    ```bash
-   cd Sectionist/  # The SwiftUI project directory
-   open Sectionist.xcodeproj
+   cd frontend/
+   ./setup.sh  # Automated setup script
+   ```
+   
+   Or manually:
+   ```bash
+   cd frontend/
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
    ```
 
-2. **Build and run** in Xcode (⌘+R)
-   - The app will start and attempt to connect to the backend server
-   - Make sure the backend is running first (see below)
+2. **Run the frontend**:
+   ```bash
+   cd frontend/
+   source venv/bin/activate
+   python sectionist_gui.py
+   ```
 
-### Backend (Python) ✅ READY TO USE
+### Swift Frontend (Archived) 📦 REFERENCE ONLY
+
+The original Swift implementation has been moved to `Swift-frontend-archived/` for reference. It is no longer actively developed but remains available for historical purposes and reference.
+
+### Backend (Python) ✅ ACTIVE DEVELOPMENT
 
 The backend is fully implemented with Flask server and audio analysis.
 
@@ -152,13 +166,16 @@ Sectionist/
 │   ├── DEVELOPMENT.md
 │   ├── CI_CD.md
 │   └── COMMUNICATION_PROTOCOL.md
-├── Sectionist/              # SwiftUI macOS app ✅ IMPLEMENTED
-│   ├── Sectionist.xcodeproj
-│   ├── SectionistApp.swift
-│   ├── ContentView.swift
-│   ├── AnalysisService.swift
-│   └── ...
-├── backend/                 # Python backend ✅ IMPLEMENTED
+├── frontend/                # Python frontend ✅ ACTIVE DEVELOPMENT
+│   ├── sectionist_gui.py   # Main PyQt6 application
+│   ├── requirements.txt
+│   ├── setup.sh
+│   └── README.md
+├── Swift-frontend-archived/ # Archived Swift code 📦 REFERENCE ONLY
+│   ├── Sectionist.xcodeproj # (archived)
+│   ├── SectionistApp.swift  # (archived)
+│   └── ...                  # (archived)
+├── backend/                 # Python backend ✅ ACTIVE DEVELOPMENT
 │   ├── requirements.txt
 │   ├── server.py
 │   ├── example.py
@@ -168,12 +185,19 @@ Sectionist/
 
 ### Areas for Contribution
 
-1. **Audio Analysis** - Enhanced segmentation accuracy, advanced chord detection
-2. **SwiftUI Frontend** - Section editing UI, export functionality, settings
-3. **Integration** - Performance optimization, error handling, file format support
+1. **Python Frontend** - Enhanced UI/UX, section editing features, local database integration
+2. **Audio Analysis** - Enhanced segmentation accuracy, advanced chord detection, bar detection
+3. **Cross-Platform** - Platform-specific optimizations, improved file handling
 4. **Testing** - Expanded test coverage, UI testing, performance testing
 5. **Documentation** - User guides, API documentation, tutorials
 6. **Performance** - Memory optimization, large file handling, real-time processing
+
+### Current Priority Areas (Based on Project Goals)
+
+1. **🎨 Enhanced Frontend Look and Feel** - Improve UI design and user experience
+2. **✏️ More Intuitive Editing Features** - Add section editing and manipulation tools
+3. **💾 Local Database Integration** - Implement SQLite for storing song modifications
+4. **📊 Bar Detection and Display** - Add musical bar/measure detection and visualization
 
 ## Submitting Changes
 
@@ -195,38 +219,54 @@ Sectionist/
 
 ## Code Style
 
-### Swift/SwiftUI
+### Python
 
-- Follow standard Swift conventions
-- Use descriptive variable and function names
-- Add documentation comments for public APIs
-- Use SwiftUI best practices for state management
+- Follow **PEP 8** style guidelines
+- Use **black** for automatic formatting
+- Use **descriptive variable and function names**
+- Add **docstrings** for classes and functions
+- Use **type hints** where appropriate
 
 Example:
-```swift
-/// Analyzes audio file and returns song sections
-func analyzeSong(from url: URL) async throws -> SongAnalysis {
+```python
+def analyze_song(file_path: str) -> SongAnalysis:
+    """
+    Analyzes audio file and returns song sections.
+    
+    Args:
+        file_path: Path to the audio file
+        
+    Returns:
+        SongAnalysis object containing detected sections
+    """
+    # Implementation here
+    pass
+```
+
+### Swift (Archived - For Reference Only)
+
+The Swift code in `Swift-frontend-archived/` follows standard Swift conventions but is no longer actively maintained.
     // Implementation
 }
 ```
 
-### Python
+### Formatting and Linting
 
-- Follow **PEP 8** style guide
-- Use **Black** for formatting:
-  ```bash
-  black src/ tests/
-  ```
-- Use **flake8** for linting:
-  ```bash
-  flake8 src/ tests/
-  ```
-- Add type hints where appropriate:
-  ```python
-  def segment_audio(audio_data: np.ndarray, sample_rate: int) -> List[Segment]:
-      """Segment audio into meaningful sections."""
-      pass
-  ```
+Use the development tools:
+```bash
+# Backend/Frontend Python code
+cd backend/ # or frontend/
+source venv/bin/activate
+
+# Format code
+black .
+
+# Lint code  
+flake8 .
+
+# Type checking
+mypy .
+```
 
 ### Commit Messages
 
@@ -243,9 +283,14 @@ Example: `feat: implement basic song segmentation algorithm`
 
 ## Testing
 
-### Frontend Testing
+### Frontend Testing (Python)
 
-- Use XCTest for unit tests
+- Use **pytest** for Python frontend testing:
+  ```bash
+  cd frontend/
+  source venv/bin/activate
+  pytest tests/
+  ```
 - Test UI components where appropriate
 - Mock backend interactions
 
@@ -270,9 +315,9 @@ Example: `feat: implement basic song segmentation algorithm`
 ### Bug Reports
 
 Include:
-- Operating system version
-- Xcode version (for frontend issues)
-- Python version (for backend issues)
+- Operating system and version (Windows, macOS, Linux)
+- Python version
+- Browser (if applicable)
 - Steps to reproduce
 - Expected vs actual behavior
 - Audio file details (format, length, genre) if relevant

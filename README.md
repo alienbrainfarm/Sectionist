@@ -4,21 +4,25 @@
 [![codecov](https://codecov.io/gh/alienbrainfarm/Sectionist/branch/main/graph/badge.svg)](https://codecov.io/gh/alienbrainfarm/Sectionist)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Sectionist is a macOS application that helps musicians analyze songs by splitting audio into meaningful sections (intro, verse, chorus, etc.), detecting key changes, and mapping basic chords. The app uses a SwiftUI frontend and a local Python backend for audio/ML processing.
+Sectionist is a cross-platform application that helps musicians analyze songs by splitting audio into meaningful sections (intro, verse, chorus, etc.), detecting key changes, and mapping basic chords. The app uses a Python frontend with PyQt6 for cross-platform compatibility and a local Python backend for audio/ML processing.
 
 **Current Features:**
 - 📄 Comprehensive development documentation
 - 🏗️ Complete project structure and architecture
 - 🎵 **Song structure segmentation (intro, verse, chorus, etc.)**
 - 🎹 **Key and tempo detection**  
-- 📡 **SwiftUI ↔ Python HTTP communication**
-- 🖥️ **Native macOS SwiftUI frontend with drag-and-drop support**
+- 📡 **Python frontend ↔ Python backend HTTP communication**
+- 🖥️ **Cross-platform Python frontend with PyQt6 (Windows, macOS, Linux)**
 - 🐍 **Python Flask backend with librosa-based audio analysis**
 - 📊 **Timeline visualization and analysis results display**
-- ✏️ **Section labeling and editing UI** ⭐ **NEW**
+- ✏️ **Section labeling and analysis UI**
 - 🎸 Basic chord mapping (backend implemented, frontend integration in progress)
 
 **Planned Features:**
+- 🎨 Enhanced frontend look and feel
+- ✏️ More intuitive editing features for song sections
+- 💾 Local database for storing song modifications
+- 📊 Bar detection and display functionality
 - 🎸 Enhanced chord mapping UI and visualization
 - 📁 Export functionality (PDF, text, MIDI)
 - 🎤 Lyric extraction from audio
@@ -26,17 +30,16 @@ Sectionist is a macOS application that helps musicians analyze songs by splittin
 
 ## Tech Stack
 
-- **Frontend:** Swift/SwiftUI (macOS app)
+- **Frontend:** Python with PyQt6 (cross-platform GUI)
 - **Backend:** Python (audio processing & ML inference)
 - **Audio Analysis:** librosa, numpy, scipy
-- **Communication:** Local HTTP API or IPC
+- **Communication:** Local HTTP API
+- **Platforms:** Windows, macOS, Linux
 
 ## Quick Start
 
 ### Prerequisites
 
-- macOS 12.0+ (required for SwiftUI)
-- Xcode 14+ with command line tools
 - Python 3.8+
 - Git
 
@@ -61,10 +64,14 @@ Sectionist is a macOS application that helps musicians analyze songs by splittin
 
 3. **Set up the frontend:**
    ```bash
-   cd ../Sectionist
-   open Sectionist.xcodeproj
-   # Build and run in Xcode (⌘+R)
+   cd ../frontend
+   ./setup.sh
    ```
+   
+   The setup script will:
+   - Create a Python virtual environment
+   - Install all required dependencies (PyQt6, pygame, etc.)
+   - Set up the cross-platform GUI application
 
 ### Usage
 
@@ -73,7 +80,12 @@ Sectionist is a macOS application that helps musicians analyze songs by splittin
    cd backend && ./start_server.sh
    ```
 
-2. **Launch the SwiftUI app** from Xcode
+2. **Launch the Python app**:
+   ```bash
+   cd frontend
+   source venv/bin/activate
+   python sectionist_gui.py
+   ```
 
 3. **Analyze audio files**:
    - Drag and drop an audio file into the app, or
@@ -94,13 +106,17 @@ source venv/bin/activate
 pip install -r requirements.txt
 pip install black flake8 pytest mypy  # Dev dependencies
 
-# Run backend (when implemented)
-python src/main.py
+# Run backend
+python server.py
 
 # Frontend development  
-cd Sectionist/
-open Sectionist.xcodeproj
-# Build and run in Xcode
+cd ../frontend/
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run frontend
+python sectionist_gui.py
 ```
 
 ## Project Structure
@@ -115,14 +131,15 @@ Sectionist/
 │   ├── DEVELOPMENT.md      # Development guide
 │   ├── CI_CD.md            # CI/CD pipeline documentation
 │   └── COMMUNICATION_PROTOCOL.md  # API specifications
-├── Sectionist/             # SwiftUI macOS app ✅ IMPLEMENTED
-│   ├── Sectionist.xcodeproj
-│   ├── SectionistApp.swift      # App entry point
-│   ├── ContentView.swift        # Main UI
-│   ├── AnalysisService.swift    # Backend communication
-│   ├── AnalysisResultsView.swift # Results display
-│   ├── TimelineView.swift       # Timeline visualization
-│   └── Assets.xcassets
+├── frontend/                # Python frontend ✅ IMPLEMENTED
+│   ├── sectionist_gui.py   # Main PyQt6 application
+│   ├── requirements.txt    # Frontend dependencies
+│   ├── setup.sh           # Frontend setup script
+│   └── README.md          # Frontend documentation
+├── Swift-frontend-archived/ # Archived Swift/SwiftUI frontend
+│   ├── Sectionist.xcodeproj # (For reference only)
+│   ├── SectionistApp.swift # (No longer actively developed)
+│   └── [Other Swift files] # (Archived)
 ├── backend/                # Python backend ✅ IMPLEMENTED
 │   ├── requirements.txt    # Production dependencies
 │   ├── requirements-dev.txt # Development dependencies
@@ -162,13 +179,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for complete guidelines.
 - [x] **SwiftUI timeline visualization foundation**
 
 ### Phase 3: User Interface ✅ **COMPLETED**
-- [x] SwiftUI audio timeline visualization (basic implementation)
-- [x] Drag-and-drop audio file support
-- [x] Section labeling and editing UI
+- [x] Python GUI timeline visualization
+- [x] Cross-platform drag-and-drop audio file support  
+- [x] Section labeling and analysis UI
 - [ ] Results export functionality
 
-### Phase 4: Advanced Features
+### Phase 4: Advanced Features 🚧 **IN PROGRESS**
 - [x] Core chord detection algorithm (backend)
+- [ ] Enhanced frontend look and feel
+- [ ] More intuitive editing features
+- [ ] Local database for song modifications
+- [ ] Bar detection and display functionality
 - [ ] Chord mapping UI integration
 - [ ] Key change detection visualization
 - [ ] Improved segmentation accuracy
@@ -208,11 +229,11 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 ## Technology Details
 
-### Frontend (SwiftUI)
-- Native macOS application
+### Frontend (Python/PyQt6)
+- Cross-platform application (Windows, macOS, Linux)
 - Drag-and-drop file support
 - Real-time audio visualization
-- Timeline-based section editing
+- Timeline-based section analysis
 
 ### Backend (Python)
 - Audio processing with librosa
@@ -239,18 +260,31 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Status**: 🚀 **Active Development** - Core functionality is implemented and working. The SwiftUI frontend communicates with the Python backend via HTTP API for real-time audio analysis. Currently polishing UI and adding advanced features.
+**Status**: 🚀 **Active Development** - Core functionality is implemented and working. The Python frontend communicates with the Python backend via HTTP API for real-time audio analysis. Currently focusing on enhancing UI/UX and adding advanced features like local storage and bar detection.
 
 ## Communication Architecture
 
 The application uses a local HTTP server architecture:
 
-- **Frontend**: SwiftUI macOS app with drag-and-drop file support
+- **Frontend**: Python PyQt6 app with cross-platform support
 - **Backend**: Python Flask server running locally (`http://127.0.0.1:5000`)
 - **Communication**: REST API with JSON data exchange
 - **Analysis**: librosa-based audio processing with music information retrieval
 
 See [Communication Protocol Documentation](docs/COMMUNICATION_PROTOCOL.md) for detailed API specifications.
+
+## Archived Swift Frontend
+
+The original Swift/SwiftUI frontend has been moved to `Swift-frontend-archived/` for reference. Development has shifted to the Python frontend to provide cross-platform compatibility. The Swift version was fully functional but was limited to macOS only.
+
+**Why the change?**
+- ✅ Cross-platform support (Windows, macOS, Linux) 
+- ✅ Unified Python ecosystem (easier maintenance)
+- ✅ No Xcode/Apple development tools dependency
+- ✅ Better Windows 11 support
+- ✅ Easier deployment and distribution
+
+The archived Swift code remains available for anyone interested in the SwiftUI implementation approach.
 
 ## Troubleshooting
 
@@ -277,17 +311,24 @@ See [Communication Protocol Documentation](docs/COMMUNICATION_PROTOCOL.md) for d
 
 ### Frontend Issues
 
-1. **"Connection refused" error in SwiftUI app**:
+1. **"PyQt6 not found" error**:
+   ```bash
+   cd frontend
+   source venv/bin/activate
+   pip install PyQt6
+   ```
+
+2. **"Connection refused" error in Python app**:
    - Make sure the backend server is running
    - Check that `http://127.0.0.1:5000/health` returns a response
 
-2. **File access errors**:
-   - Ensure the audio file is in a accessible location
-   - Try copying the file to your Documents folder
+3. **Audio playback issues**:
+   - Ensure pygame is installed: `pip install pygame`
+   - Try a different audio format (MP3, WAV, etc.)
 
-3. **Build errors in Xcode**:
-   - Make sure you have Xcode 14+ installed
-   - Clean build folder (⌘+Shift+K) and rebuild
+4. **Linux-specific issues**:
+   - Install system audio libraries: `sudo apt-get install libasound2-dev`
+   - For PyQt6: `sudo apt-get install python3-pyqt6`
 
 ### Performance Issues
 
