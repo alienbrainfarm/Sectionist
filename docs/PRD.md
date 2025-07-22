@@ -99,7 +99,7 @@ Learning new songs is time-consuming for musicians, especially when breaking dow
 
 2. **Basic Song Segmentation** ✅ **COMPLETED**
    - Backend prototype for section detection.
-   - SwiftUI frontend to visualize segments.
+   - Python frontend to visualize segments.
 
 3. **Key & Chord Detection** ✅ **COMPLETED**  
    - Add key and chord estimation to backend.

@@ -168,7 +168,7 @@ interface SongSection {
 
 ### HTTP Client Service
 
-The SwiftUI frontend includes an `AnalysisService` class that handles all communication with the backend:
+The current Python frontend includes HTTP communication functionality that handles all backend requests, while the archived SwiftUI frontend used an `AnalysisService` class.
 
 ```swift
 class AnalysisService: ObservableObject {
