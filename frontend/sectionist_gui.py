@@ -183,6 +183,7 @@ class TimelineWidget(QWidget):
     section_clicked = pyqtSignal(float)  # Emit timestamp when section is clicked
     section_renamed = pyqtSignal(int, str)  # Emit section index and new name
     section_resized = pyqtSignal(int, float, float)  # Emit section index, new start, new end
+    section_separator_moved = pyqtSignal(int, float)  # Emit separator index and new position
     
     def __init__(self):
         super().__init__()
@@ -204,6 +205,7 @@ class TimelineWidget(QWidget):
         self.resize_section = -1
         self.last_click_time = 0
         self.drag_start_x = 0
+        self.drag_time_display = ""  # Store current drag time for display
         
         # Define consistent colors for section types
         self.section_colors = {
@@ -311,6 +313,23 @@ class TimelineWidget(QWidget):
             pos_x = int((self.current_position / self.duration) * rect.width())
             painter.setPen(QPen(QColor(255, 0, 0), 2))
             painter.drawLine(pos_x, 0, pos_x, rect.height())
+        
+        # Draw drag time display while dragging
+        if self.drag_time_display:
+            painter.setPen(QPen(QColor(0, 0, 0)))
+            painter.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+            
+            # Draw background rectangle for better visibility
+            text_rect = painter.fontMetrics().boundingRect(self.drag_time_display)
+            bg_rect = text_rect.adjusted(-5, -2, 5, 2)
+            bg_rect.moveTopLeft(rect.topLeft() + painter.fontMetrics().boundingRect("").topLeft())
+            bg_rect.moveTop(rect.height() - 25)
+            bg_rect.moveLeft(10)
+            
+            painter.fillRect(bg_rect, QColor(255, 255, 0, 200))  # Semi-transparent yellow
+            painter.drawRect(bg_rect)
+            painter.drawText(bg_rect.adjusted(5, 2, -5, -2), Qt.AlignmentFlag.AlignCenter, 
+                           f"Time: {self.drag_time_display}")
     
     def get_section_at_position(self, x):
         """Get section index at given x position."""
@@ -384,17 +403,57 @@ class TimelineWidget(QWidget):
         x = event.position().x()
         
         if self.resize_mode and self.resize_section >= 0:
-            # Handle section resizing
+            # Handle section resizing/separator dragging
             timestamp = (x / self.width()) * self.duration
             section = self.sections[self.resize_section]
             
+            # Format time for display
+            minutes = int(timestamp // 60)
+            seconds = int(timestamp % 60)
+            milliseconds = int((timestamp % 1) * 1000)
+            self.drag_time_display = f"{minutes}:{seconds:02d}.{milliseconds:03d}"
+            
             if self.resize_mode == 'start':
-                new_start = max(0, min(timestamp, section.get('end', 0) - 1))
-                self.section_resized.emit(self.resize_section, new_start, section.get('end', 0))
+                # When dragging the start of a section, we're moving the separator
+                # between this section and the previous one
+                prev_section_idx = self.resize_section - 1
+                if prev_section_idx >= 0:
+                    # Constrain the new position
+                    prev_section = self.sections[prev_section_idx]
+                    min_time = prev_section.get('start', 0) + 1  # Must be after previous section start
+                    max_time = section.get('end', 0) - 1  # Must be before current section end
+                    new_time = max(min_time, min(timestamp, max_time))
+                    
+                    # Emit separator moved signal with the boundary index (between sections)
+                    self.section_separator_moved.emit(prev_section_idx, new_time)
+                else:
+                    # First section, just modify its start
+                    new_start = max(0, min(timestamp, section.get('end', 0) - 1))
+                    self.section_resized.emit(self.resize_section, new_start, section.get('end', 0))
+                    
             elif self.resize_mode == 'end':
-                new_end = max(section.get('start', 0) + 1, min(timestamp, self.duration))
-                self.section_resized.emit(self.resize_section, section.get('start', 0), new_end)
+                # When dragging the end of a section, we're moving the separator
+                # between this section and the next one  
+                next_section_idx = self.resize_section + 1
+                if next_section_idx < len(self.sections):
+                    # Constrain the new position
+                    next_section = self.sections[next_section_idx]
+                    min_time = section.get('start', 0) + 1  # Must be after current section start
+                    max_time = next_section.get('end', 0) - 1  # Must be before next section end
+                    new_time = max(min_time, min(timestamp, max_time))
+                    
+                    # Emit separator moved signal with the boundary index (between sections)
+                    self.section_separator_moved.emit(self.resize_section, new_time)
+                else:
+                    # Last section, just modify its end
+                    new_end = max(section.get('start', 0) + 1, min(timestamp, self.duration))
+                    self.section_resized.emit(self.resize_section, section.get('start', 0), new_end)
+            
+            # Force repaint to show time display
+            self.update()
         else:
+            # Clear drag time display when not dragging
+            self.drag_time_display = ""
             # Update cursor based on position
             section_idx = self.get_section_at_position(x)
             if section_idx >= 0:
@@ -410,7 +469,9 @@ class TimelineWidget(QWidget):
         """Handle mouse release events."""
         self.resize_mode = None
         self.resize_section = -1
+        self.drag_time_display = ""  # Clear drag time display
         self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.update()  # Repaint to clear the time display
     
     def start_rename_section(self, section_idx):
         """Start renaming a section."""
@@ -503,6 +564,7 @@ class SectionistMainWindow(QMainWindow):
         self.timeline.section_clicked.connect(self.seek_to_position)
         self.timeline.section_renamed.connect(self.rename_section)
         self.timeline.section_resized.connect(self.resize_section)
+        self.timeline.section_separator_moved.connect(self.move_section_separator)
         timeline_layout.addWidget(self.timeline)
         
         # Playback controls
@@ -671,7 +733,7 @@ class SectionistMainWindow(QMainWindow):
         if file_path:
             self.load_file(file_path)
     
-    def load_file(self, file_path: str):
+    def load_file(self, file_path: str, auto_analyze: bool = True):
         """Load an audio file."""
         self.current_file = file_path
         filename = Path(file_path).name
@@ -696,8 +758,9 @@ class SectionistMainWindow(QMainWindow):
         # Show timeline group
         self.timeline_group.setVisible(True)
         
-        # Auto-analyze audio when file is first opened
-        self.analyze_audio()
+        # Auto-analyze audio when file is first opened (unless loading saved data)
+        if auto_analyze:
+            self.analyze_audio()
     
     def clear_file(self):
         """Clear the current file."""
@@ -961,8 +1024,8 @@ class SectionistMainWindow(QMainWindow):
             with open(analysis_file, 'r') as f:
                 self.analysis_results = json.load(f)
             
-            # Load audio file
-            self.load_file(str(audio_files[0]))
+            # Load audio file without auto-analyzing
+            self.load_file(str(audio_files[0]), auto_analyze=False)
             
             # Display results without re-analyzing
             self.display_results(self.analysis_results)
@@ -1067,6 +1130,24 @@ class SectionistMainWindow(QMainWindow):
             
             # Mark as modified
             self.status_label.setText(f"Section {section_idx + 1} resized")
+    
+    def move_section_separator(self, separator_idx, new_time):
+        """Move a section separator, affecting both adjacent sections."""
+        if not self.analysis_results or separator_idx < 0:
+            return
+        
+        sections = self.analysis_results.get('analysis', {}).get('sections', [])
+        if separator_idx < len(sections) - 1:  # Ensure there's a next section
+            # Update the end of the current section and start of the next section
+            sections[separator_idx]['end'] = new_time
+            sections[separator_idx + 1]['start'] = new_time
+            
+            # Update displays
+            self.display_results(self.analysis_results)
+            self.timeline.set_sections(sections)
+            
+            # Mark as modified
+            self.status_label.setText(f"Separator between sections {separator_idx + 1} and {separator_idx + 2} moved")
 
 
 def main():
