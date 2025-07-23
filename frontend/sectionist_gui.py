@@ -8,7 +8,7 @@ This provides the same functionality as the Swift version but works on Windows, 
 Features:
 - Drag & drop audio file support
 - Communication with existing Python backend
-- Audio playback controls
+- Audio playback controls with seeking and position tracking (VLC-based)
 - Timeline visualization
 - Analysis results display
 - Cross-platform compatibility
@@ -44,9 +44,9 @@ except ImportError:
     sys.exit(1)
 
 try:
-    import pygame
+    import vlc
 except ImportError:
-    print("pygame not found. Install with: pip install pygame")
+    print("python-vlc not found. Install with: pip install python-vlc")
     sys.exit(1)
 
 try:
@@ -109,29 +109,49 @@ class AnalysisWorker(QThread):
 
 
 class AudioPlayer:
-    """Simple audio player using pygame."""
+    """Audio player using python-vlc for better seeking and position support."""
     
     def __init__(self):
-        pygame.mixer.init()
+        # Create VLC instance with options for better compatibility
+        vlc_args = [
+            '--intf', 'dummy',      # No interface
+            '--aout', 'dummy',      # Dummy audio output for headless environments
+            '--quiet',              # Less verbose output
+        ]
+        self.vlc_instance = vlc.Instance(vlc_args)
+        self.media_player = self.vlc_instance.media_player_new()
         self.is_playing = False
         self.is_paused = False
         self.current_file = None
         self.duration = 0
-        self.position = 0
+        self.media = None
         
     def load_file(self, file_path: str) -> bool:
         """Load an audio file."""
         try:
-            # Get file duration using mutagen
-            audio_file = MutagenFile(file_path)
-            if audio_file is not None:
-                self.duration = audio_file.info.length
-            else:
-                self.duration = 0
-            
-            pygame.mixer.music.load(file_path)
+            # Create media object
+            self.media = self.vlc_instance.media_new(file_path)
+            self.media_player.set_media(self.media)
             self.current_file = file_path
-            self.position = 0
+            
+            # Parse media to get duration - use synchronous parsing
+            self.media.parse_with_options(vlc.MediaParseFlag.local, 5000)  # 5 second timeout
+            
+            # Get duration in milliseconds, convert to seconds
+            duration_ms = self.media.get_duration()
+            if duration_ms > 0:
+                self.duration = duration_ms / 1000.0
+            else:
+                # Fallback to mutagen for duration
+                try:
+                    audio_file = MutagenFile(file_path)
+                    if audio_file is not None:
+                        self.duration = audio_file.info.length
+                    else:
+                        self.duration = 0
+                except:
+                    self.duration = 0
+            
             return True
         except Exception as e:
             print(f"Error loading audio file: {e}")
@@ -141,39 +161,43 @@ class AudioPlayer:
         """Start or resume playback."""
         if self.current_file:
             if self.is_paused:
-                pygame.mixer.music.unpause()
+                self.media_player.pause()
                 self.is_paused = False
             else:
-                pygame.mixer.music.play()
+                self.media_player.play()
             self.is_playing = True
     
     def pause(self):
         """Pause playback."""
         if self.is_playing:
-            pygame.mixer.music.pause()
+            self.media_player.pause()
             self.is_paused = True
             self.is_playing = False
     
     def stop(self):
         """Stop playback."""
-        pygame.mixer.music.stop()
+        self.media_player.stop()
         self.is_playing = False
         self.is_paused = False
-        self.position = 0
     
     def set_position(self, position: float):
-        """Set playback position (limited functionality with pygame)."""
-        # pygame doesn't support seeking, this is a limitation
-        # In a production version, we'd use a different audio library
-        pass
+        """Set playback position in seconds."""
+        if self.current_file and self.duration > 0:
+            # VLC expects position as a ratio between 0.0 and 1.0
+            position_ratio = max(0.0, min(1.0, position / self.duration))
+            self.media_player.set_position(position_ratio)
     
     def get_position(self) -> float:
-        """Get current playback position."""
-        # This is a simplified implementation
-        return self.position
+        """Get current playback position in seconds."""
+        if self.current_file and self.duration > 0:
+            # Get position ratio and convert to seconds
+            position_ratio = self.media_player.get_position()
+            if position_ratio >= 0:  # VLC returns -1 for invalid position
+                return position_ratio * self.duration
+        return 0.0
     
     def get_duration(self) -> float:
-        """Get total duration."""
+        """Get total duration in seconds."""
         return self.duration
 
 
@@ -582,7 +606,9 @@ class SectionistMainWindow(QMainWindow):
         self.position_slider = QSlider(Qt.Orientation.Horizontal)
         self.position_slider.sliderPressed.connect(self.slider_pressed)
         self.position_slider.sliderReleased.connect(self.slider_released)
+        self.position_slider.valueChanged.connect(self.slider_value_changed)
         self.position_slider.setEnabled(False)
+        self.slider_is_pressed = False
         
         self.time_label = QLabel("00:00 / 00:00")
         
@@ -929,26 +955,34 @@ class SectionistMainWindow(QMainWindow):
     
     def seek_to_position(self, timestamp: float):
         """Seek to a specific position."""
-        # Note: pygame doesn't support seeking, so this is limited
-        # In a production version, we'd use a different audio library
-        pass
+        self.audio_player.set_position(timestamp)
+        self.update_playback_position()
     
     def slider_pressed(self):
         """Handle slider press (pause updates)."""
+        self.slider_is_pressed = True
         self.playback_timer.stop()
     
     def slider_released(self):
         """Handle slider release (resume updates)."""
+        self.slider_is_pressed = False
         if self.audio_player.is_playing:
             self.playback_timer.start(100)
     
+    def slider_value_changed(self, value):
+        """Handle slider value change (seeking)."""
+        if self.slider_is_pressed:  # Only seek when user is dragging
+            timestamp = float(value)
+            self.audio_player.set_position(timestamp)
+            self.timeline.set_position(timestamp)
+            self.update_time_label()
+    
     def update_playback_position(self):
         """Update playback position indicators."""
-        # This is a simplified implementation since pygame doesn't provide position
-        # In a production version, we'd use a different audio library
-        position = self.audio_player.get_position()
-        self.position_slider.setValue(int(position))
-        self.timeline.set_position(position)
+        if not self.slider_is_pressed:  # Only update if user is not dragging slider
+            position = self.audio_player.get_position()
+            self.position_slider.setValue(int(position))
+            self.timeline.set_position(position)
         self.update_time_label()
     
     def update_time_label(self):

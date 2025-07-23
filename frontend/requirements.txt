@@ -3,7 +3,7 @@
 PyQt6>=6.5.0
 
 # Audio playback
-pygame>=2.1.0
+python-vlc>=3.0.0
 
 # HTTP communication (reuse existing backend API)
 requests>=2.31.0
