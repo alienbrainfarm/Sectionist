@@ -8,7 +8,7 @@ This provides the same functionality as the Swift version but works on Windows, 
 Features:
 - Drag & drop audio file support
 - Communication with existing Python backend
-- Audio playback controls
+- Audio playback controls with seeking and position tracking (VLC-based)
 - Timeline visualization
 - Analysis results display
 - Cross-platform compatibility
