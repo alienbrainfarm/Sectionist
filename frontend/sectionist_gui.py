@@ -115,7 +115,6 @@ class AudioPlayer:
         # Create VLC instance with options for better compatibility
         vlc_args = [
             '--intf', 'dummy',      # No interface
-            '--aout', 'dummy',      # Dummy audio output for headless environments
             '--quiet',              # Less verbose output
         ]
         self.vlc_instance = vlc.Instance(vlc_args)
