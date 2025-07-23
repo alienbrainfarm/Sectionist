@@ -7,9 +7,9 @@ timeline visualization and section editing functionality.
 """
 
 from typing import List, Dict
-from PyQt6.QtWidgets import QWidget, QInputDialog
+from PyQt6.QtWidgets import QWidget, QInputDialog, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QPen, QFont
+from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QAction
 
 
 class TimelineWidget(QWidget):
@@ -19,6 +19,8 @@ class TimelineWidget(QWidget):
     section_renamed = pyqtSignal(int, str)  # Emit section index and new name
     section_resized = pyqtSignal(int, float, float)  # Emit section index, new start, new end
     section_separator_moved = pyqtSignal(int, float)  # Emit separator index and new position
+    section_joined = pyqtSignal(int)  # Emit section index to join with next section
+    section_split = pyqtSignal(int, float)  # Emit section index and split position
     
     def __init__(self):
         super().__init__()
@@ -113,6 +115,20 @@ class TimelineWidget(QWidget):
                 color = QColor(color_hex)
                 painter.fillRect(x, 20, width, rect.height() - 20, color)
                 
+                # Draw clear section boundaries with strong borders
+                border_pen = QPen(QColor(0, 0, 0), 2)  # Black border, 2px thick
+                painter.setPen(border_pen)
+                painter.drawRect(x, 20, width, rect.height() - 20)
+                
+                # Draw section separators between sections (more visible)
+                if i < len(self.sections) - 1:  # Not the last section
+                    next_section = self.sections[i + 1]
+                    separator_x = int((end_time / self.duration) * rect.width())
+                    # Draw a thicker separator line
+                    separator_pen = QPen(QColor(0, 0, 0), 3)  # Thick black line
+                    painter.setPen(separator_pen)
+                    painter.drawLine(separator_x, 20, separator_x, rect.height())
+                
                 # Draw section label with number
                 painter.setPen(QPen(QColor(0, 0, 0)))
                 if width > 50:  # Only draw text if there's enough space
@@ -147,22 +163,29 @@ class TimelineWidget(QWidget):
             painter.setPen(QPen(QColor(255, 0, 0), 2))
             painter.drawLine(pos_x, 0, pos_x, rect.height())
         
-        # Draw drag time display while dragging
+        # Draw drag time display while dragging (improved visibility)
         if self.drag_time_display:
             painter.setPen(QPen(QColor(0, 0, 0)))
-            painter.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+            painter.setFont(QFont("Arial", 16, QFont.Weight.Bold))  # Larger font
             
-            # Draw background rectangle for better visibility
+            # Calculate better position and size for time display
             text_rect = painter.fontMetrics().boundingRect(self.drag_time_display)
-            bg_rect = text_rect.adjusted(-5, -2, 5, 2)
-            bg_rect.moveTopLeft(rect.topLeft() + painter.fontMetrics().boundingRect("").topLeft())
-            bg_rect.moveTop(rect.height() - 25)
-            bg_rect.moveLeft(10)
+            # Make background significantly larger for better visibility  
+            bg_rect = text_rect.adjusted(-15, -8, 15, 8)
             
-            painter.fillRect(bg_rect, QColor(255, 255, 0, 200))  # Semi-transparent yellow
+            # Position in center-top area for better visibility
+            bg_rect.moveTopLeft(rect.topLeft())
+            bg_rect.moveTop(25)  # Below time scale
+            bg_rect.moveLeft((rect.width() - bg_rect.width()) // 2)  # Center horizontally
+            
+            # Draw with better contrast and visibility
+            painter.fillRect(bg_rect, QColor(255, 255, 0, 240))  # Brighter yellow with more opacity
+            painter.setPen(QPen(QColor(0, 0, 0), 2))  # Thicker border
             painter.drawRect(bg_rect)
-            painter.drawText(bg_rect.adjusted(5, 2, -5, -2), Qt.AlignmentFlag.AlignCenter, 
-                           f"Time: {self.drag_time_display}")
+            
+            # Draw time text with better contrast
+            painter.setPen(QPen(QColor(0, 0, 0)))
+            painter.drawText(bg_rect, Qt.AlignmentFlag.AlignCenter, self.drag_time_display)
     
     def get_section_at_position(self, x):
         """Get section index at given x position."""
@@ -321,3 +344,48 @@ class TimelineWidget(QWidget):
         
         if ok and new_name.strip():
             self.section_renamed.emit(section_idx, new_name.strip())
+    
+    def contextMenuEvent(self, event):
+        """Handle right-click context menu."""
+        x = event.position().x()
+        section_idx = self.get_section_at_position(x)
+        
+        if section_idx >= 0:
+            # Create context menu for the section
+            menu = QMenu(self)
+            
+            # Rename action
+            rename_action = QAction(f"Rename Section {section_idx + 1}", self)
+            rename_action.triggered.connect(lambda: self.start_rename_section(section_idx))
+            menu.addAction(rename_action)
+            
+            menu.addSeparator()
+            
+            # Join with next section (if not the last section)
+            if section_idx < len(self.sections) - 1:
+                join_action = QAction(f"Join with Next Section", self)
+                join_action.triggered.connect(lambda: self.section_joined.emit(section_idx))
+                menu.addAction(join_action)
+            
+            # Split section action
+            split_action = QAction(f"Split Section in Half", self)
+            split_action.triggered.connect(lambda: self.split_section_at_position(section_idx, x))
+            menu.addAction(split_action)
+            
+            # Show context menu
+            menu.exec(event.globalPosition().toPoint())
+    
+    def split_section_at_position(self, section_idx, x_position):
+        """Split a section at the given x position (or at the middle if x_position is None)."""
+        if section_idx < 0 or section_idx >= len(self.sections):
+            return
+        
+        section = self.sections[section_idx]
+        start_time = section.get('start', 0)
+        end_time = section.get('end', 0)
+        
+        # Calculate split position (at the middle of the section)
+        split_time = (start_time + end_time) / 2.0
+        
+        # Emit signal for splitting
+        self.section_split.emit(section_idx, split_time)

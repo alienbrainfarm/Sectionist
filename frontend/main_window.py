@@ -105,6 +105,8 @@ class SectionistMainWindow(QMainWindow):
         self.timeline.section_renamed.connect(self.rename_section)
         self.timeline.section_resized.connect(self.resize_section)
         self.timeline.section_separator_moved.connect(self.move_section_separator)
+        self.timeline.section_joined.connect(self.join_section_with_next)
+        self.timeline.section_split.connect(self.split_section)
         timeline_layout.addWidget(self.timeline)
         
         # Playback controls
@@ -691,3 +693,55 @@ class SectionistMainWindow(QMainWindow):
             
             # Mark as modified
             self.status_label.setText(f"Separator between sections {separator_idx + 1} and {separator_idx + 2} moved")
+    
+    def join_section_with_next(self, section_idx):
+        """Join a section with the next section."""
+        if not self.analysis_results or section_idx < 0:
+            return
+        
+        sections = self.analysis_results.get('analysis', {}).get('sections', [])
+        if section_idx < len(sections) - 1:  # Ensure there's a next section to join with
+            current_section = sections[section_idx]
+            next_section = sections[section_idx + 1]
+            
+            # Extend current section to include the next section's end time
+            current_section['end'] = next_section['end']
+            
+            # Remove the next section
+            sections.pop(section_idx + 1)
+            
+            # Update displays
+            self.display_results(self.analysis_results)
+            self.timeline.set_sections(sections)
+            
+            # Mark as modified
+            self.status_label.setText(f"Section {section_idx + 1} joined with next section")
+    
+    def split_section(self, section_idx, split_time):
+        """Split a section into two sections at the specified time."""
+        if not self.analysis_results or section_idx < 0:
+            return
+        
+        sections = self.analysis_results.get('analysis', {}).get('sections', [])
+        if section_idx < len(sections):
+            current_section = sections[section_idx]
+            
+            # Create new section for the second half
+            new_section = {
+                'start': split_time,
+                'end': current_section['end'],
+                'name': current_section['name'] + " (2)"  # Add suffix to distinguish
+            }
+            
+            # Update current section to end at split time
+            current_section['end'] = split_time
+            
+            # Insert the new section after the current one
+            sections.insert(section_idx + 1, new_section)
+            
+            # Update displays
+            self.display_results(self.analysis_results)
+            self.timeline.set_sections(sections)
+            
+            # Mark as modified
+            self.status_label.setText(f"Section {section_idx + 1} split into two sections")
