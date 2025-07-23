@@ -347,7 +347,7 @@ class TimelineWidget(QWidget):
     
     def contextMenuEvent(self, event):
         """Handle right-click context menu."""
-        x = event.position().x()
+        x = event.x()
         section_idx = self.get_section_at_position(x)
         
         if section_idx >= 0:
@@ -373,7 +373,7 @@ class TimelineWidget(QWidget):
             menu.addAction(split_action)
             
             # Show context menu
-            menu.exec(event.globalPosition().toPoint())
+            menu.exec(event.globalPos())
     
     def split_section_at_position(self, section_idx, x_position):
         """Split a section at the given x position (or at the middle if x_position is None)."""
