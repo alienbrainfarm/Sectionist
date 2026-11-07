@@ -1,27 +1,18 @@
 # macOS
 .DS_Store
 
-# Xcode
-*.xcworkspace
-*.xcuserstate
-*.xcodeproj/*
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata
-DerivedData/
-build/
-
-# SwiftPM
-/.build
-/Packages
-
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 venv/
 .env
 .env.*
+
+# Test and coverage artefacts
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Logs
 *.log

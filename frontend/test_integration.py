@@ -1,180 +1,152 @@
-#!/usr/bin/env python3
-"""
-Test script for Python frontend backend integration.
+"""Integration tests for the frontend <-> backend request path.
 
-This script tests the integration between the Python frontend
-and the existing Flask backend without requiring a GUI.
+The HTTP layer is exercised against stubs so the suite runs without a live
+server. A real round-trip test is included but skipped unless the backend is
+listening on port 5000.
 """
 
-import sys
+import os
+
+import pytest
 import requests
-import json
-import time
-from pathlib import Path
 
-def test_backend_health():
-    """Test if the backend server is responding."""
-    print("Testing backend health...")
-    try:
-        response = requests.get("http://127.0.0.1:5000/health", timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Backend is healthy: {data}")
-            return True
-        else:
-            print(f"❌ Backend returned status {response.status_code}")
-            return False
-    except requests.exceptions.ConnectionError:
-        print("❌ Cannot connect to backend. Is it running on port 5000?")
-        return False
-    except Exception as e:
-        print(f"❌ Error testing backend: {e}")
-        return False
+from analysis_worker import (
+    ANALYSIS_TIMEOUT_SECONDS,
+    HEALTH_TIMEOUT_SECONDS,
+    AnalysisWorker,
+)
 
-def test_supported_formats():
-    """Test the supported formats endpoint."""
-    print("\nTesting supported formats...")
-    try:
-        response = requests.get("http://127.0.0.1:5000/formats", timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            formats = data.get('supported_formats', [])
-            print(f"✅ Supported formats: {', '.join(formats)}")
-            return True
-        else:
-            print(f"❌ Formats endpoint returned status {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Error testing formats: {e}")
-        return False
+BACKEND_URL = os.environ.get("SECTIONIST_BACKEND_URL", "http://127.0.0.1:5000")
 
-def simulate_file_analysis():
-    """Simulate file analysis by testing with a dummy file."""
-    print("\nTesting analysis endpoint with dummy data...")
-    
-    # Create a small dummy audio file (just bytes for testing)
-    dummy_audio_data = b"dummy audio data for testing"
-    
-    try:
-        files = {'audio': ('test.mp3', dummy_audio_data, 'audio/mp3')}
-        response = requests.post(
-            "http://127.0.0.1:5000/analyze",
-            files=files,
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('success'):
-                print("✅ Analysis endpoint accepts requests")
-                analysis = data.get('analysis', {})
-                print(f"   Duration: {analysis.get('duration', 'N/A')}")
-                print(f"   Tempo: {analysis.get('tempo', 'N/A')}")
-                print(f"   Key: {analysis.get('key', 'N/A')}")
-                return True
-            else:
-                error = data.get('error', 'Unknown error')
-                print(f"⚠️ Analysis failed (expected with dummy data): {error}")
-                return True  # This is expected with dummy data
-        else:
-            print(f"❌ Analysis endpoint returned status {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error testing analysis: {e}")
-        return False
 
-def test_python_frontend_imports():
-    """Test if the Python frontend dependencies can be imported."""
-    print("\nTesting Python frontend imports...")
-    
-    # Test standard library imports
+class FakeResponse:
+    def __init__(self, status_code=200, payload=None):
+        self.status_code = status_code
+        self._payload = payload if payload is not None else {}
+
+    def json(self):
+        return self._payload
+
+
+def collect_signals(worker):
+    """Capture everything the worker emits."""
+    events = {"finished": [], "error": [], "progress": []}
+    worker.finished.connect(events["finished"].append)
+    worker.error.connect(events["error"].append)
+    worker.progress.connect(events["progress"].append)
+    return events
+
+
+def test_analysis_timeout_leaves_room_for_long_songs():
+    # A 10 minute song can take a couple of minutes to analyse; the old 60s
+    # limit made long files fail while the backend was still working.
+    assert ANALYSIS_TIMEOUT_SECONDS >= 300
+    assert HEALTH_TIMEOUT_SECONDS <= 10
+
+
+def test_run_uploads_file_and_emits_results(tmp_path, monkeypatch):
+    audio = tmp_path / "song.wav"
+    audio.write_bytes(b"stand-in audio bytes")
+
+    expected = {"success": True, "analysis": {"duration": 12.0}}
+    calls = {}
+
+    def fake_get(url, timeout=None):
+        calls["get"] = {"url": url, "timeout": timeout}
+        return FakeResponse(200, {"status": "healthy"})
+
+    def fake_post(url, files=None, timeout=None):
+        calls["post"] = {"url": url, "timeout": timeout, "files": files}
+        return FakeResponse(200, expected)
+
+    monkeypatch.setattr("analysis_worker.requests.get", fake_get)
+    monkeypatch.setattr("analysis_worker.requests.post", fake_post)
+
+    worker = AnalysisWorker(str(audio))
+    events = collect_signals(worker)
+    worker.run()
+
+    assert events["error"] == []
+    assert events["finished"] == [expected]
+    assert calls["post"]["url"] == f"{BACKEND_URL}/analyze"
+    assert calls["post"]["timeout"] == ANALYSIS_TIMEOUT_SECONDS
+    assert calls["post"]["files"]["audio"].name.endswith("song.wav")
+
+
+def test_run_reports_unreachable_backend(tmp_path, monkeypatch):
+    audio = tmp_path / "song.wav"
+    audio.write_bytes(b"stand-in audio bytes")
+
+    def unreachable(*args, **kwargs):
+        raise requests.exceptions.ConnectionError()
+
+    monkeypatch.setattr("analysis_worker.requests.get", unreachable)
+
+    worker = AnalysisWorker(str(audio))
+    events = collect_signals(worker)
+    worker.run()
+
+    assert events["finished"] == []
+    assert len(events["error"]) == 1
+    assert "Cannot connect" in events["error"][0]
+
+
+def test_run_reports_analysis_error_payload(tmp_path, monkeypatch):
+    audio = tmp_path / "song.wav"
+    audio.write_bytes(b"stand-in audio bytes")
+
+    monkeypatch.setattr(
+        "analysis_worker.requests.get", lambda *a, **k: FakeResponse(200, {})
+    )
+    monkeypatch.setattr(
+        "analysis_worker.requests.post",
+        lambda *a, **k: FakeResponse(200, {"success": False, "error": "bad file"}),
+    )
+
+    worker = AnalysisWorker(str(audio))
+    events = collect_signals(worker)
+    worker.run()
+
+    assert events["finished"] == []
+    assert len(events["error"]) == 1
+    assert "bad file" in events["error"][0]
+
+
+def test_run_reports_server_error_status(tmp_path, monkeypatch):
+    audio = tmp_path / "song.wav"
+    audio.write_bytes(b"stand-in audio bytes")
+
+    monkeypatch.setattr(
+        "analysis_worker.requests.get", lambda *a, **k: FakeResponse(200, {})
+    )
+    monkeypatch.setattr(
+        "analysis_worker.requests.post", lambda *a, **k: FakeResponse(500)
+    )
+
+    worker = AnalysisWorker(str(audio))
+    events = collect_signals(worker)
+    worker.run()
+
+    assert len(events["error"]) == 1
+    assert "500" in events["error"][0]
+
+
+def backend_is_running():
     try:
-        import tkinter
-        print("✅ tkinter available (for minimal_demo.py)")
-    except ImportError:
-        print("⚠️ tkinter not available (expected in headless environments)")
-    
-    try:
-        import requests
-        print("✅ requests available")
-    except ImportError:
-        print("❌ requests not available - install with: pip install requests")
+        requests.get(f"{BACKEND_URL}/health", timeout=1).raise_for_status()
+    except requests.exceptions.RequestException:
         return False
-    
-    try:
-        import threading
-        import json
-        import sys
-        from pathlib import Path
-        from typing import Dict, Optional
-        print("✅ Standard library imports working")
-    except ImportError as e:
-        print(f"❌ Standard library import error: {e}")
-        return False
-    
-    # Test PyQt6 (optional)
-    try:
-        from PyQt6.QtWidgets import QApplication
-        print("✅ PyQt6 available (for sectionist_gui.py)")
-    except ImportError:
-        print("⚠️ PyQt6 not available - install with: pip install PyQt6")
-    
     return True
 
-def generate_integration_report():
-    """Generate a comprehensive integration report."""
-    print("\n" + "="*60)
-    print("PYTHON FRONTEND INTEGRATION REPORT")
-    print("="*60)
-    
-    results = {
-        'backend_health': test_backend_health(),
-        'supported_formats': test_supported_formats(), 
-        'analysis_endpoint': simulate_file_analysis(),
-        'python_imports': test_python_frontend_imports()
-    }
-    
-    print(f"\nSUMMARY:")
-    print("-" * 30)
-    
-    all_passed = True
-    for test_name, passed in results.items():
-        status = "✅ PASS" if passed else "❌ FAIL"
-        print(f"{test_name.replace('_', ' ').title()}: {status}")
-        if not passed:
-            all_passed = False
-    
-    print("-" * 30)
-    
-    if all_passed:
-        print("🎉 ALL TESTS PASSED - Python frontend is ready for integration!")
-        print("\nNext steps:")
-        print("1. Start the backend: cd backend && ./start_server.sh")
-        print("2. Run Python frontend: cd frontend-python && python minimal_demo.py")
-        print("3. Test with real audio files")
-    else:
-        print("⚠️  Some tests failed - check the issues above")
-        print("\nTroubleshooting:")
-        if not results['backend_health']:
-            print("- Start backend: cd backend && ./start_server.sh")
-        if not results['python_imports']:
-            print("- Install dependencies: pip install requests PyQt6")
-    
-    return all_passed
 
-def main():
-    """Main function."""
-    print("Sectionist Python Frontend Integration Test")
-    print("==========================================")
-    print()
-    print("This script validates the integration between the Python frontend")
-    print("and the existing Flask backend to ensure compatibility.")
-    print()
-    
-    success = generate_integration_report()
-    
-    return 0 if success else 1
+@pytest.mark.skipif(
+    not backend_is_running(), reason=f"no backend listening on {BACKEND_URL}"
+)
+def test_live_backend_reports_health_and_formats():
+    health = requests.get(f"{BACKEND_URL}/health", timeout=5)
+    assert health.status_code == 200
+    assert health.json()["status"] == "healthy"
 
-if __name__ == "__main__":
-    sys.exit(main())
+    formats = requests.get(f"{BACKEND_URL}/formats", timeout=5)
+    assert formats.status_code == 200
+    assert "mp3" in formats.json()["supported_formats"]

@@ -49,8 +49,8 @@ The new algorithm replaces simple frame-based analysis with:
 ### Files Added/Modified
 - `backend/improved_segmentation.py` - New advanced algorithm implementation
 - `backend/example.py` - Modified to use improved algorithm with fallback
-- `backend/test_advanced_segmentation.py` - Comprehensive testing framework
-- `backend/test_real_world_performance.py` - Real-world performance validation
+- `backend/benchmark_advanced_segmentation.py` - Comprehensive benchmark framework
+- `backend/benchmark_real_world_performance.py` - Real-world performance benchmark
 
 ### Integration
 The improved algorithm is seamlessly integrated:

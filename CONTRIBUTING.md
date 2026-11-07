@@ -109,10 +109,6 @@ The frontend is a cross-platform Python application using PyQt6.
    python sectionist_gui.py
    ```
 
-### Swift Frontend (Archived) 📦 REFERENCE ONLY
-
-The original Swift implementation has been moved to `Swift-frontend-archived/` for reference. It is no longer actively developed but remains available for historical purposes and reference.
-
 ### Backend (Python) ✅ ACTIVE DEVELOPMENT
 
 The backend is fully implemented with Flask server and audio analysis.
@@ -167,14 +163,14 @@ Sectionist/
 │   ├── CI_CD.md
 │   └── COMMUNICATION_PROTOCOL.md
 ├── frontend/                # Python frontend ✅ ACTIVE DEVELOPMENT
-│   ├── sectionist_gui.py   # Main PyQt6 application
+│   ├── sectionist_gui.py   # Entry point
+│   ├── main_window.py      # Main application window
+│   ├── timeline_widget.py  # Timeline visualization
+│   ├── audio_player.py     # python-vlc audio playback
+│   ├── analysis_worker.py  # Background analysis worker
 │   ├── requirements.txt
 │   ├── setup.sh
 │   └── README.md
-├── Swift-frontend-archived/ # Archived Swift code 📦 REFERENCE ONLY
-│   ├── Sectionist.xcodeproj # (archived)
-│   ├── SectionistApp.swift  # (archived)
-│   └── ...                  # (archived)
 ├── backend/                 # Python backend ✅ ACTIVE DEVELOPMENT
 │   ├── requirements.txt
 │   ├── server.py
@@ -241,13 +237,6 @@ def analyze_song(file_path: str) -> SongAnalysis:
     """
     # Implementation here
     pass
-```
-
-### Swift (Archived - For Reference Only)
-
-The Swift code in `Swift-frontend-archived/` follows standard Swift conventions but is no longer actively maintained.
-    // Implementation
-}
 ```
 
 ### Formatting and Linting

@@ -95,7 +95,7 @@ Learning new songs is time-consuming for musicians, especially when breaking dow
 ### Original Timeline (Completed Ahead of Schedule)
 
 1. **Project Setup & Scaffolding** ✅ **COMPLETED**
-   - Repo, SwiftUI/Python folders, initial README, sample audio file(s).
+   - Repo, Python backend and frontend folders, initial README, sample audio file(s).
 
 2. **Basic Song Segmentation** ✅ **COMPLETED**
    - Backend prototype for section detection.
@@ -137,7 +137,7 @@ The core functionality outlined in this PRD has been successfully implemented ah
 
 ## Project Evolution Note
 
-**Frontend Migration (2024):** The project has migrated from Swift/SwiftUI (macOS-only) to Python/PyQt6 (cross-platform) to support Windows, macOS, and Linux. The Swift implementation has been archived in `Swift-frontend-archived/` for reference. This change enables broader platform support while maintaining the same core functionality.
+**Frontend Migration (2024):** The project migrated from a macOS-only native implementation to Python/PyQt6 (cross-platform) to support Windows, macOS, and Linux. The original macOS-only implementation has been removed from the repository rather than kept for reference. This change enables broader platform support while maintaining the same core functionality.
 
 ---
 

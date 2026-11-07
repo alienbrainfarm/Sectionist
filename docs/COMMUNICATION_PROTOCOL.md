@@ -164,44 +164,6 @@ interface SongSection {
 }
 ```
 
-## Swift Implementation
-
-### HTTP Client Service
-
-The current Python frontend includes HTTP communication functionality that handles all backend requests, while the archived SwiftUI frontend used an `AnalysisService` class.
-
-```swift
-class AnalysisService: ObservableObject {
-    static let shared = AnalysisService()
-    private let baseURL = "http://127.0.0.1:5000"
-    
-    // Health check
-    func checkHealth() async throws -> ServerHealth
-    
-    // Get supported formats
-    func getSupportedFormats() async throws -> SupportedFormats
-    
-    // Analyze audio file
-    func analyzeAudio(fileURL: URL) async throws -> AnalysisResponse
-}
-```
-
-### Error Handling
-
-The Swift client provides comprehensive error handling:
-
-```swift
-enum AnalysisError: LocalizedError {
-    case invalidURL
-    case fileNotFound
-    case fileAccessError(String)
-    case fileReadError(String)  
-    case networkError(String)
-    case serverError(String)
-    case analysisError(String)
-}
-```
-
 ## Usage Flow
 
 1. **Start Backend Server**:
@@ -211,7 +173,7 @@ enum AnalysisError: LocalizedError {
    python server.py
    ```
 
-2. **SwiftUI Application**:
+2. **PyQt6 Application**:
    - User drags/selects audio file
    - App checks server health (`/health`)
    - App uploads file for analysis (`/analyze`)
@@ -219,7 +181,7 @@ enum AnalysisError: LocalizedError {
    - App updates UI with sections and analysis data
 
 3. **Data Transformation**:
-   - Backend analysis results are converted to SwiftUI models
+   - Backend analysis results are converted to Python data models
    - Song sections are mapped to timeline visualization
    - Analysis data populates results view
 
@@ -234,12 +196,12 @@ enum AnalysisError: LocalizedError {
 - Server runs on localhost only (127.0.0.1)
 - No authentication required (local development only)
 - Files are processed temporarily and cleaned up
-- SwiftUI handles sandbox security-scoped resources
+- The frontend only reads audio files the user explicitly selects
 
 ## Error Scenarios
 
 1. **Backend server not running**:
-   - Network error in SwiftUI
+   - Network error in the frontend
    - User shown error message to start backend
 
 2. **Unsupported file format**:

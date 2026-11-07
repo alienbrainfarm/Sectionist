@@ -15,8 +15,6 @@ This guide provides detailed information for setting up and developing Sectionis
 
 ## Architecture Overview
 
-## Architecture Overview
-
 Sectionist uses a unified Python architecture with a cross-platform PyQt6 frontend and a Python backend:
 
 ```
@@ -49,9 +47,14 @@ Sectionist uses a unified Python architecture with a cross-platform PyQt6 fronte
 
 ```
 frontend/
-├── sectionist_gui.py              # Main application ✅ IMPLEMENTED
+├── sectionist_gui.py              # Application entry point ✅ IMPLEMENTED
+├── main_window.py                 # Main window and UI logic ✅ IMPLEMENTED
+├── timeline_widget.py             # Timeline visualization ✅ IMPLEMENTED
+├── audio_player.py                # python-vlc audio playback ✅ IMPLEMENTED
+├── analysis_worker.py             # Background analysis worker ✅ IMPLEMENTED
 ├── requirements.txt               # Dependencies ✅ IMPLEMENTED
 ├── setup.sh                       # Setup script ✅ IMPLEMENTED
+├── conftest.py                    # Headless Qt test configuration ✅ IMPLEMENTED
 └── README.md                      # Documentation ✅ IMPLEMENTED
 ```
 
@@ -68,23 +71,11 @@ frontend/
    ```bash
    pip install -r requirements.txt
    ```
-4. **Run the application**:
+4. **Install the VLC media player** (provides the `libvlc` library required by
+   python-vlc)
+5. **Run the application**:
    ```bash
    python sectionist_gui.py
-   ```
-
-### Archived Swift Frontend (Reference Only)
-
-The original Swift/SwiftUI implementation has been moved to `Swift-frontend-archived/` for reference. It is no longer actively developed.
-   ```bash
-   cd Sectionist/
-   open Sectionist.xcodeproj
-   
-   # Build for development
-   xcodebuild -scheme Sectionist -configuration Debug
-   
-   # Run tests
-   xcodebuild test -scheme Sectionist
    ```
 
 ## Backend Development
@@ -115,17 +106,15 @@ backend/
 ```python
 # requirements.txt
 librosa>=0.10.0
-numpy>=1.21.0
-scipy>=1.9.0
-scikit-learn>=1.1.0
-fastapi>=0.100.0
-uvicorn>=0.20.0
-pydantic>=2.0.0
-python-multipart>=0.0.6
+numpy>=1.24.0
+scipy>=1.10.0
+flask>=2.3.0
+pytest>=7.0.0
+requests>=2.31.0
 
-# Optional but recommended
-madmom>=0.16.1
-essentia>=2.1b6.dev858
+# Optional (commented out in requirements.txt)
+# madmom>=0.16.1
+# essentia>=2.1b1
 ```
 
 ### Development Dependencies
@@ -186,7 +175,7 @@ pip install -r requirements-dev.txt
 pip install -e .
 
 # Run development server
-uvicorn sectionist.api.server:app --reload --host 127.0.0.1 --port 8000
+python server.py
 ```
 
 ## Communication Protocol
@@ -196,23 +185,27 @@ uvicorn sectionist.api.server:app --reload --host 127.0.0.1 --port 8000
 1. **HTTP REST API** (Primary):
    - Frontend makes HTTP requests to local backend
    - JSON payload for requests/responses
-   - Async/await pattern in Swift
+   - Requests run in a background worker thread in the PyQt6 frontend
 
 2. **File-based Exchange** (Alternative):
    - Frontend writes audio file path to shared location
    - Backend processes and writes results to JSON file
    - Frontend polls for completion
 
-### Example Swift Service
+### Example Python Client
 
-```swift
-class AnalysisService: ObservableObject {
-    private let baseURL = URL(string: "http://127.0.0.1:8000")!
-    
-    func analyzeAudio(_ audioURL: URL) async throws -> SongAnalysis {
-        // Implementation
-    }
-}
+```python
+import requests
+
+def analyze_audio(file_path: str) -> dict:
+    """Upload an audio file to the local backend and return the analysis."""
+    with open(file_path, "rb") as audio:
+        response = requests.post(
+            "http://127.0.0.1:5000/analyze",
+            files={"audio": audio},
+        )
+    response.raise_for_status()
+    return response.json()
 ```
 
 ## Audio Processing Pipeline
@@ -287,21 +280,18 @@ def segment_audio(y: np.ndarray, sr: int) -> list[dict]:
 
 ### Frontend Tests
 
-1. **Unit Tests** (XCTest):
-   ```swift
-   func testAudioFileLoading() {
-       let service = AudioService()
-       // Test audio file validation
-   }
+1. **Unit Tests** (pytest):
+   ```bash
+   cd frontend
+   QT_QPA_PLATFORM=offscreen pytest -v
    ```
+   Tests cover the window structure, timeline widget, and backend
+   integration (`test_gui_structure.py`, `test_integration.py`,
+   `test_timeline_improvements.py`).
 
 2. **UI Tests**:
-   ```swift
-   func testTimelineInteraction() {
-       let app = XCUIApplication()
-       // Test timeline view interactions
-   }
-   ```
+   - Construct PyQt6 widgets directly and assert their structure
+   - Run headless in CI with `QT_QPA_PLATFORM=offscreen`
 
 ### Backend Tests
 
@@ -360,7 +350,7 @@ def segment_audio(y: np.ndarray, sr: int) -> list[dict]:
 
 2. **Audio Visualization**:
    - Downsample waveforms for display
-   - Use Core Graphics efficiently
+   - Use Qt painting primitives efficiently
 
 ## Deployment
 
@@ -368,14 +358,14 @@ def segment_audio(y: np.ndarray, sr: int) -> list[dict]:
 
 1. **Backend**:
    ```bash
-   # Run with hot reload
-   uvicorn sectionist.api.server:app --reload
+   # Run the Flask development server
+   python server.py
    ```
 
 2. **Frontend**:
    ```bash
-   # Run in Xcode or build for distribution
-   xcodebuild archive -scheme Sectionist
+   # Run the PyQt6 application directly
+   python sectionist_gui.py
    ```
 
 ### Production Considerations
@@ -384,48 +374,26 @@ def segment_audio(y: np.ndarray, sr: int) -> list[dict]:
    - Consider PyInstaller for standalone executable
    - Bundle ML models with application
 
-2. **macOS App Distribution**:
-   - Code signing for distribution
-   - Notarization for macOS Gatekeeper
-   - Consider Mac App Store distribution
+2. **Desktop App Distribution**:
+   - Package the PyQt6 frontend with PyInstaller
+   - Ensure the VLC media player (libvlc) is available on the target machine
+   - Consider platform-specific installers
 
 ### CI/CD Pipeline
 
-```yaml
-# .github/workflows/test.yml
-name: Test
-on: [push, pull_request]
-jobs:
-  test-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
-          cd backend
-          pip install -r requirements.txt -r requirements-dev.txt
-      - name: Run tests
-        run: |
-          cd backend
-          pytest
-          
-  test-frontend:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build and test
-        run: |
-          cd Sectionist
-          xcodebuild test -scheme Sectionist
-```
+CI runs on GitHub Actions via `.github/workflows/ci.yml`, with three jobs:
+
+- **Backend (Python 3.10/3.11/3.12)** - flake8, `black --check`, and
+  pytest with coverage
+- **Frontend** - headless PyQt6 tests on Ubuntu with Qt and libvlc installed
+- **Integration** - starts the Flask server, waits for `/health`, and runs
+  `backend/smoke_test.py` end to end
+
+See [CI/CD Pipeline](CI_CD.md) for details.
 
 ## Next Steps
 
-1. **Create Project Structure**: Set up Xcode project and Python package
+1. **Refine Project Structure**: Keep the Python backend and frontend packages organized
 2. **Implement Audio Loading**: Basic audio file handling
 3. **Prototype Segmentation**: Simple section detection algorithm
 4. **Frontend-Backend Integration**: Establish communication protocol

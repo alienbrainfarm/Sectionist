@@ -34,7 +34,7 @@ Sectionist is a cross-platform audio analysis application that helps musicians a
 - Follow **PEP 8** style guide strictly
 - Use type hints for all function parameters and return values
 - Include comprehensive docstrings following **PEP 257** conventions
-- Maintain line length of 79 characters maximum
+- Maintain line length of 88 characters maximum (black default)
 - Use 4 spaces for indentation
 - Write clear, descriptive variable and function names
 
@@ -234,7 +234,7 @@ def load_audio_file(file_path: str) -> Tuple[np.ndarray, int]:
 
 ## Implementation Notes
 
-- The application previously had a Swift/SwiftUI frontend that has been archived
+- The application is pure Python: a Flask + librosa backend and a PyQt6 frontend
 - Focus on maintaining compatibility with the existing backend API
 - Prioritize cross-platform functionality over platform-specific features
 - Implement progressive enhancement for advanced audio analysis features
