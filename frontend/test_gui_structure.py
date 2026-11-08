@@ -57,7 +57,7 @@ def test_main_window_builds_expected_widgets(qapp):
     try:
         assert "Sectionist" in window.windowTitle()
         assert window.timeline is not None
-        assert window.sections_text is not None
+        assert window.sections_table is not None
         assert window.details_text is not None
         # Nothing has been analysed yet, so saving stays disabled.
         assert window.save_action.isEnabled() is False
@@ -92,7 +92,7 @@ def test_display_results_populates_panels_and_timeline(qapp):
     try:
         window.display_results(payload)
 
-        sections_text = window.sections_text.toPlainText()
+        sections_text = window.sections_table.toPlainText()
         assert "Intro" in sections_text
         assert "Verse 1" in sections_text
         assert len(window.timeline.sections) == 2
@@ -129,9 +129,9 @@ def test_sections_without_confidence_show_a_dash(qapp):
     try:
         window.display_results(payload)
 
-        sections_text = window.sections_text.toPlainText()
-        assert "Verse 1" in sections_text
-        assert "Confidence: —" in sections_text
+        table = window.sections_table
+        assert table.cell_text(0, 0) == "Verse 1"
+        assert table.cell_text(0, 5) == "—"
         assert "songformer" in window.details_text.toPlainText()
     finally:
         window.close()
@@ -143,7 +143,7 @@ def test_display_results_ignores_failed_payload(qapp):
     window = SectionistMainWindow()
     try:
         window.display_results({"success": False, "error": "backend exploded"})
-        assert window.sections_text.toPlainText() == ""
+        assert window.sections_table.rowCount() == 0
         assert window.timeline.sections == []
     finally:
         window.close()
@@ -157,11 +157,15 @@ def test_modules_stay_reviewably_sized():
         "timeline_widget.py": 600,
         "audio_player.py": 200,
         "analysis_worker.py": 120,
+        "panels.py": 400,
+        "theme.py": 400,
+        "timeline_paint.py": 300,
     }
 
     oversized = {}
     for name, limit in limits.items():
-        line_count = len((FRONTEND_DIR / name).read_text().splitlines())
+        source = (FRONTEND_DIR / name).read_text(encoding="utf-8")
+        line_count = len(source.splitlines())
         if line_count > limit:
             oversized[name] = (line_count, limit)
 

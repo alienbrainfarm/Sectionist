@@ -52,9 +52,11 @@ except ImportError:
 try:
     # Try relative imports first (when run as module)
     from .main_window import SectionistMainWindow
+    from .theme import apply_theme
 except ImportError:
     # Fall back to absolute imports (when run directly)
     from main_window import SectionistMainWindow
+    from theme import apply_theme
 
 
 def main():
@@ -77,6 +79,7 @@ def main():
     app.setApplicationName("Sectionist")
     app.setApplicationVersion("2.0.0")
     app.setOrganizationName("Sectionist")
+    apply_theme(app)
 
     # Create and show main window
     window = SectionistMainWindow()

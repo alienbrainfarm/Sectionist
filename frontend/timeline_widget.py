@@ -7,9 +7,9 @@ timeline visualization and section editing functionality.
 """
 
 from typing import List, Dict
-from PyQt6.QtWidgets import QWidget, QInputDialog, QMenu
+from PyQt6.QtWidgets import QWidget, QInputDialog, QMenu, QSizePolicy
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QAction
+from PyQt6.QtGui import QPainter, QAction
 
 try:
     # Package import (frontend/__init__.py imports this module eagerly).
@@ -19,6 +19,8 @@ try:
         chord_boundary_at,
         paint_chord_track,
     )
+    from . import timeline_paint as paint
+    from .theme import section_color
 except ImportError:
     # Direct import when the frontend directory is on sys.path.
     from chord_track import (
@@ -27,6 +29,8 @@ except ImportError:
         chord_boundary_at,
         paint_chord_track,
     )
+    import timeline_paint as paint
+    from theme import section_color
 
 
 class TimelineWidget(QWidget):
@@ -52,14 +56,13 @@ class TimelineWidget(QWidget):
         self.downbeats = []
         self.duration = 0
         self.current_position = 0
-        self.setMinimumHeight(130)
-        self.setStyleSheet("""
-            TimelineWidget {
-                background-color: #f0f0f0;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
-        """)
+        self.setMinimumHeight(170)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMouseTracking(True)  # hover feedback and resize cursors
+        self.hover_section = -1
+        self.drag_x = 0.0
+        # Shown when there is a duration but no sections yet.
+        self.placeholder_text = ""
 
         # For section editing
         self.editing_section = -1
@@ -74,37 +77,9 @@ class TimelineWidget(QWidget):
         self.chord_resize = -1
         self.last_chord_click_time = 0.0
 
-        # Define consistent colors for section types
-        self.section_colors = {
-            "intro": "#4A90E2",  # Blue
-            "verse": "#7ED321",  # Green
-            "chorus": "#F5A623",  # Orange
-            "bridge": "#BD10E0",  # Purple
-            "outro": "#B8E986",  # Light green
-            "instrumental": "#50E3C2",  # Turquoise
-            "solo": "#D0021B",  # Red
-            "breakdown": "#9013FE",  # Dark purple
-            "interlude": "#F8E71C",  # Yellow
-            "pre-chorus": "#FF6B35",  # Orange-red
-            "post-chorus": "#6C5CE7",  # Blue-purple
-            "default": "#95A5A6",  # Gray for unknown sections
-        }
-
     def get_section_color(self, section_name):
         """Get color for section based on its name."""
-        section_name = section_name.lower().strip()
-
-        # Check for exact matches first
-        if section_name in self.section_colors:
-            return self.section_colors[section_name]
-
-        # Check for partial matches
-        for section_type, color in self.section_colors.items():
-            if section_type in section_name:
-                return color
-
-        # Default color
-        return self.section_colors["default"]
+        return section_color(section_name)
 
     def set_sections(self, sections: List[Dict]):
         """Set the song sections to display."""
@@ -182,6 +157,7 @@ class TimelineWidget(QWidget):
             return
 
         new_time = max(lower, min(timestamp, upper))
+        self.drag_x = x
         self.drag_time_display = self._format_drag_time(new_time)
         self.chord_boundary_moved.emit(index, new_time)
         self.update()
@@ -219,134 +195,62 @@ class TimelineWidget(QWidget):
         self.current_position = position
         self.update()
 
+    def current_section(self):
+        """Index of the section containing the playhead, or -1."""
+        for index, section in enumerate(self.sections):
+            if section.get("start", 0) <= self.current_position < section.get("end", 0):
+                return index
+        return -1
+
     def paintEvent(self, event):
         """Paint the timeline."""
         painter = QPainter(self)
         rect = self.rect()
+        width = rect.width()
+        paint.paint_background(painter, rect)
 
-        # Background
-        painter.fillRect(rect, QColor(240, 240, 240))
+        if self.chords:
+            section_bottom = rect.height() - CHORD_LANE_HEIGHT - paint.CHORD_GAP
+        else:
+            section_bottom = rect.height() - 4
 
-        chord_lane = rect.height() - CHORD_LANE_HEIGHT if self.chords else rect.height()
-        section_bottom = chord_lane - (6 if self.chords else 0)
+        if self.duration <= 0:
+            paint.paint_placeholder(
+                painter, rect, self.placeholder_text or "No song loaded"
+            )
+            return
 
-        if self.duration > 0 and self.sections:
-            # Draw sections
-            for i, section in enumerate(self.sections):
-                start_time = section.get("start", 0)
-                end_time = section.get("end", 0)
-                name = section.get("name", "Section")
+        paint.paint_ruler(painter, self.duration, width)
 
-                # Calculate position and width
-                x = int((start_time / self.duration) * rect.width())
-                width = int(((end_time - start_time) / self.duration) * rect.width())
+        if self.sections:
+            paint.paint_sections(
+                painter,
+                self.sections,
+                self.duration,
+                width,
+                section_bottom,
+                downbeats=self.downbeats,
+                current=self.current_section(),
+                hovered=self.hover_section,
+            )
+        elif self.placeholder_text:
+            band = rect.adjusted(0, paint.SECTION_TOP, 0, 0)
+            paint.paint_placeholder(painter, band, self.placeholder_text)
 
-                # Get consistent color based on section type
-                color_hex = self.get_section_color(name)
-                color = QColor(color_hex)
-                painter.fillRect(x, 20, width, section_bottom - 20, color)
-
-                # Draw clear section boundaries with strong borders
-                border_pen = QPen(QColor(0, 0, 0), 2)  # Black border, 2px thick
-                painter.setPen(border_pen)
-                painter.drawRect(x, 20, width, section_bottom - 20)
-
-                # Draw section separators between sections (more visible)
-                if i < len(self.sections) - 1:  # Not the last section
-                    separator_x = int((end_time / self.duration) * rect.width())
-                    # Draw a thicker separator line
-                    separator_pen = QPen(QColor(0, 0, 0), 3)  # Thick black line
-                    painter.setPen(separator_pen)
-                    painter.drawLine(separator_x, 20, separator_x, section_bottom)
-
-                # Draw section label with number
-                painter.setPen(QPen(QColor(0, 0, 0)))
-                if width > 50:  # Only draw text if there's enough space
-                    section_text = f"{i + 1}. {name}"
-                    painter.drawText(x + 5, 40, section_text)
-
-        # Draw time scale at the top
-        if self.duration > 0:
-            painter.setPen(QPen(QColor(100, 100, 100)))
-            # Draw time markers every minute or based on duration
-            time_interval = 60  # seconds
-            if self.duration < 120:  # Less than 2 minutes
-                time_interval = 30
-            elif self.duration < 300:  # Less than 5 minutes
-                time_interval = 60
-            else:
-                time_interval = 120
-
-            for t in range(0, int(self.duration) + 1, time_interval):
-                x = int((t / self.duration) * rect.width())
-                painter.drawLine(x, 0, x, 15)
-
-                # Draw time label
-                minutes = int(t // 60)
-                seconds = int(t % 60)
-                time_text = f"{minutes}:{seconds:02d}"
-                painter.drawText(x + 2, 12, time_text)
-
-        # Draw bar lines across the section area, skipping ones too close
-        # together to be legible.
-        if self.duration > 0 and self.downbeats and section_bottom > 20:
-            painter.setPen(QPen(QColor(0, 0, 0, 45), 1))
-            previous_x = None
-            for beat in self.downbeats:
-                if beat <= 0 or beat >= self.duration:
-                    continue
-                x = int((beat / self.duration) * rect.width())
-                if previous_x is not None and x - previous_x < 3:
-                    continue
-                painter.drawLine(x, 20, x, section_bottom)
-                previous_x = x
-
-        # Draw the chord track beneath the sections
-        if self.duration > 0 and self.chords:
+        if self.chords:
             paint_chord_track(
                 painter,
                 self.chords,
                 self.duration,
-                rect.width(),
+                width,
                 rect.height(),
                 self.selected_chord,
             )
 
-        # Draw current position indicator
-        if self.duration > 0:
-            pos_x = int((self.current_position / self.duration) * rect.width())
-            painter.setPen(QPen(QColor(255, 0, 0), 2))
-            painter.drawLine(pos_x, 0, pos_x, rect.height())
-
-        # Draw drag time display while dragging (improved visibility)
-        if self.drag_time_display:
-            painter.setPen(QPen(QColor(0, 0, 0)))
-            painter.setFont(QFont("Arial", 16, QFont.Weight.Bold))  # Larger font
-
-            # Calculate better position and size for time display
-            text_rect = painter.fontMetrics().boundingRect(self.drag_time_display)
-            # Make background significantly larger for better visibility
-            bg_rect = text_rect.adjusted(-15, -8, 15, 8)
-
-            # Position in center-top area for better visibility
-            bg_rect.moveTopLeft(rect.topLeft())
-            bg_rect.moveTop(25)  # Below time scale
-            bg_rect.moveLeft(
-                (rect.width() - bg_rect.width()) // 2
-            )  # Center horizontally
-
-            # Draw with better contrast and visibility
-            painter.fillRect(
-                bg_rect, QColor(255, 255, 0, 240)
-            )  # Brighter yellow with more opacity
-            painter.setPen(QPen(QColor(0, 0, 0), 2))  # Thicker border
-            painter.drawRect(bg_rect)
-
-            # Draw time text with better contrast
-            painter.setPen(QPen(QColor(0, 0, 0)))
-            painter.drawText(
-                bg_rect, Qt.AlignmentFlag.AlignCenter, self.drag_time_display
-            )
+        paint.paint_playhead(
+            painter, self.current_position, self.duration, width, rect.height()
+        )
+        paint.paint_drag_bubble(painter, self.drag_time_display, self.drag_x, width)
 
     def get_section_at_position(self, x):
         """Get section index at given x position."""
@@ -435,12 +339,8 @@ class TimelineWidget(QWidget):
             # Handle section resizing/separator dragging
             timestamp = (x / self.width()) * self.duration
             section = self.sections[self.resize_section]
-
-            # Format time for display
-            minutes = int(timestamp // 60)
-            seconds = int(timestamp % 60)
-            milliseconds = int((timestamp % 1) * 1000)
-            self.drag_time_display = f"{minutes}:{seconds:02d}.{milliseconds:03d}"
+            self.drag_x = x
+            self.drag_time_display = self._format_drag_time(timestamp)
 
             if self.resize_mode == "start":
                 # When dragging the start of a section, we're moving the separator
@@ -497,16 +397,31 @@ class TimelineWidget(QWidget):
         else:
             # Clear drag time display when not dragging
             self.drag_time_display = ""
-            # Update cursor based on position
-            section_idx = self.get_section_at_position(x)
+            # Update hover highlight and cursor based on position
+            in_chords = self.is_in_chord_lane(event.position().y())
+            section_idx = -1 if in_chords else self.get_section_at_position(x)
+            if section_idx != self.hover_section:
+                self.hover_section = section_idx
+                self.update()
             if section_idx >= 0:
                 resize_mode = self.get_resize_mode(x, section_idx)
                 if resize_mode:
                     self.setCursor(Qt.CursorShape.SizeHorCursor)
                 else:
                     self.setCursor(Qt.CursorShape.PointingHandCursor)
+            elif in_chords and self.get_chord_boundary(x) >= 0:
+                self.setCursor(Qt.CursorShape.SizeHorCursor)
+            elif in_chords:
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
             else:
                 self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def leaveEvent(self, event):
+        """Drop the hover highlight when the pointer leaves."""
+        if self.hover_section != -1:
+            self.hover_section = -1
+            self.update()
+        super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release events."""

@@ -1,63 +1,96 @@
-"""Text rendering for the results panels.
+"""Rich-text rendering for the analysis details panel.
 
 Kept out of the main window so the window stays a coordinator rather than a
 template engine, and so the wording can be tested without a QApplication.
 """
 
+from html import escape
+
+try:
+    from .theme import TEXT, TEXT_DIM
+    from .chord_track import chord_color
+except ImportError:
+    from theme import TEXT, TEXT_DIM
+    from chord_track import chord_color
+
 
 def _timestamp(seconds):
-    minutes = int(float(seconds) // 60)
-    remainder = int(float(seconds) % 60)
-    return f"{minutes:02d}:{remainder:02d}"
+    seconds = max(0, int(float(seconds or 0)))
+    return f"{seconds // 60}:{seconds % 60:02d}"
 
 
-def format_sections(sections):
-    """Render the song sections panel."""
-    text = "Song Sections:\n\n"
-    for index, section in enumerate(sections, 1):
-        name = section.get("name", "Unknown")
-        start = section.get("start", 0)
-        end = section.get("end", 0)
-        confidence = section.get("confidence")
+def chord_vocabulary(chords):
+    """(name, total seconds) for each chord, most-used first."""
+    totals = {}
+    for chord in chords or []:
+        name = str(chord.get("name", "")).strip()
+        if not name:
+            continue
+        length = float(chord.get("end", 0)) - float(chord.get("start", 0))
+        totals[name] = totals.get(name, 0.0) + max(0.0, length)
+    return sorted(totals.items(), key=lambda item: (-item[1], item[0]))
 
-        text += f"{index}. {name}\n"
-        text += f"   Time: {_timestamp(start)} - {_timestamp(end)}\n"
-        if confidence is None:
-            # Model-based engines do not report per-section confidence.
-            text += "   Confidence: —\n\n"
-        else:
-            text += f"   Confidence: {confidence:.1%}\n\n"
-    return text
+
+def _stat(label, value):
+    return (
+        f'<td style="padding:4px 18px 8px 0;">'
+        f'<div style="color:{TEXT_DIM}; font-size:8pt;">{escape(label)}</div>'
+        f'<div style="color:{TEXT}; font-size:12pt; font-weight:600;">'
+        f"{escape(str(value))}</div></td>"
+    )
+
+
+def _heading(text):
+    return (
+        f'<p style="color:{TEXT_DIM}; font-size:8pt; font-weight:600;'
+        f' margin:14px 0 4px 0;">{escape(text.upper())}</p>'
+    )
 
 
 def format_details(analysis):
-    """Render the analysis details panel."""
-    text = "Analysis Details:\n\n"
-    text += f"Duration: {_timestamp(analysis.get('duration', 0))}\n"
-    text += f"Tempo: {analysis.get('tempo', 0):.1f} BPM\n"
-    text += f"Key: {analysis.get('key', 'Unknown')}\n"
-    text += f"Beats Detected: {analysis.get('beats_detected', 0)}\n"
-    text += f"Engine: {analysis.get('engine', 'librosa')}\n\n"
+    """Render the analysis details panel as HTML."""
+    downbeats = analysis.get("downbeats") or []
+    stats = [
+        ("Key", analysis.get("key", "Unknown")),
+        ("Tempo", f"{float(analysis.get('tempo', 0) or 0):.1f} BPM"),
+        ("Duration", _timestamp(analysis.get("duration", 0))),
+        ("Bars", len(downbeats) if downbeats else "—"),
+        ("Beats", analysis.get("beats_detected", 0)),
+        ("Engine", analysis.get("engine", "librosa")),
+    ]
+    rows = [stats[:3], stats[3:]]
+    html = '<table cellspacing="0" cellpadding="0">'
+    for row in rows:
+        html += "<tr>" + "".join(_stat(label, value) for label, value in row)
+        html += "</tr>"
+    html += "</table>"
 
     key_changes = analysis.get("key_changes", [])
     if key_changes:
-        text += "Key Changes:\n"
+        html += _heading("Key changes")
         for change in key_changes:
-            text += (
-                f"  {_timestamp(change.get('timestamp', 0))}: "
-                f"{change.get('from_key', 'Unknown')} → "
-                f"{change.get('to_key', 'Unknown')}\n"
+            html += (
+                f'<div style="margin:2px 0;">'
+                f'<span style="color:{TEXT_DIM};">'
+                f"{_timestamp(change.get('timestamp', 0))}</span>&nbsp;&nbsp;"
+                f"{escape(str(change.get('from_key', 'Unknown')))} → "
+                f"<b>{escape(str(change.get('to_key', 'Unknown')))}</b></div>"
             )
-        text += "\n"
 
     chords = analysis.get("chords", [])
-    if chords:
-        text += f"Chords ({len(chords)}):\n"
-        for chord in chords:
-            text += (
-                f"  {_timestamp(chord.get('start', 0))} - "
-                f"{_timestamp(chord.get('end', 0))}: "
-                f"{chord.get('name', 'Unknown')}\n"
+    vocabulary = chord_vocabulary(chords)
+    if vocabulary:
+        html += _heading(f"Chords used ({len(chords)} changes)")
+        chips = []
+        for name, seconds in vocabulary:
+            color = chord_color(name).name()
+            chips.append(
+                f'<span style="background:{color}; color:#111318;'
+                f' font-weight:600;">&nbsp;{escape(name)}&nbsp;</span>'
+                f'<span style="color:{TEXT_DIM};">&nbsp;{_timestamp(seconds)}</span>'
             )
+        html += (
+            '<p style="line-height:170%;">' + "&nbsp;&nbsp;&nbsp; ".join(chips) + "</p>"
+        )
 
-    return text
+    return html

@@ -4,10 +4,12 @@ Kept out of the timeline widget so the chord lane stays small enough to reason
 about, and so its geometry can be tested without a window.
 """
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFont, QPen
+from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 
 CHORD_LANE_HEIGHT = 30
+_BLOCK_H = CHORD_LANE_HEIGHT - 8
+LANE_COLOR = "#14161B"
 
 PITCH_CLASSES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
@@ -77,38 +79,38 @@ def paint_chord_track(painter, chords, duration, width, height, selected=-1):
         return
 
     lane_top = height - CHORD_LANE_HEIGHT
-    painter.fillRect(0, lane_top, width, CHORD_LANE_HEIGHT, QColor(38, 38, 38))
-    painter.setPen(QPen(QColor(120, 120, 120), 1))
-    painter.drawLine(0, lane_top, width, lane_top)
-    painter.setFont(QFont("Arial", 9))
+    painter.fillRect(0, lane_top, width, CHORD_LANE_HEIGHT, QColor(LANE_COLOR))
+    font = QFont()
+    font.setPointSizeF(8.5)
+    font.setWeight(QFont.Weight.DemiBold)
+    painter.setFont(font)
+    metrics = painter.fontMetrics()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
     for index, chord in enumerate(chords):
         start = float(chord.get("start", 0))
         end = float(chord.get("end", 0))
-        name = chord.get("name", "")
+        name = str(chord.get("name", ""))
         if end <= start:
             continue
 
-        x1 = int((start / duration) * width)
-        x2 = int((end / duration) * width)
-        block_width = max(1, x2 - x1)
-        block = (x1, lane_top + 3, block_width, CHORD_LANE_HEIGHT - 6)
+        x1 = (start / duration) * width
+        x2 = (end / duration) * width
+        block = QRectF(x1 + 0.5, lane_top + 4, max(1.0, x2 - x1 - 1), _BLOCK_H)
+        color = chord_color(name)
 
-        painter.fillRect(block[0], block[1], block[2], block[3], chord_color(name))
-        painter.setPen(QPen(QColor(0, 0, 0), 1))
-        painter.drawRect(block[0], block[1], block[2], block[3])
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        painter.drawRoundedRect(block, 3, 3)
 
-        if block_width >= 22:
-            painter.setPen(QPen(QColor(0, 0, 0)))
-            painter.drawText(
-                block[0],
-                block[1],
-                block[2],
-                block[3],
-                Qt.AlignmentFlag.AlignCenter,
-                name,
-            )
+        if name and block.width() >= metrics.horizontalAdvance(name) + 6:
+            painter.setPen(QColor("#111318"))
+            painter.drawText(block, Qt.AlignmentFlag.AlignCenter, name)
 
         if index == selected:
             painter.setPen(QPen(QColor(255, 255, 255), 2))
-            painter.drawRect(block[0], block[1], block[2], block[3])
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(block.adjusted(-1, -1, 1, 1), 3, 3)
+
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
