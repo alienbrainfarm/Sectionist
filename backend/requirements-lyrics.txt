@@ -1,0 +1,11 @@
+# Optional: lyrics transcription via faster-whisper.
+#
+#   pip install -r requirements-lyrics.txt
+#
+# The model (~460 MB for the default "small") downloads on first use. Set
+# SECTIONIST_WHISPER_MODEL to tiny/base/small/medium/large-v3, and
+# SECTIONIST_WHISPER_DEVICE to cpu or cuda.
+#
+# Everything is transcribed locally; no audio leaves the machine.
+
+faster-whisper>=1.0

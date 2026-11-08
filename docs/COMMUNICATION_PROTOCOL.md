@@ -120,6 +120,10 @@ curl -X POST -F 'audio=@/path/to/song.mp3' http://127.0.0.1:8765/analyze
     ],
     "beats_detected": 360,
     "downbeats": [0.0, 2.06, 4.12, 6.18],
+    "lyrics": [
+      {"start": 0.0, "end": 6.0, "text": "Be on my side, I'll be on your side, baby"},
+      {"start": 6.0, "end": 12.0, "text": "There is no reason for you to hide"}
+    ],
     "engine": "songformer"
   }
 }
@@ -157,7 +161,14 @@ interface AnalysisData {
   sections: SongSection[]; // Detected song sections
   beats_detected: number;  // Number of beats detected
   downbeats?: number[];    // Bar starts in seconds (present when beat tracking ran)
+  lyrics?: LyricLine[];    // Present when faster-whisper is installed
   engine?: string;         // "librosa" or "songformer"
+}
+
+interface LyricLine {
+  start: number;           // Seconds
+  end: number;
+  text: string;
 }
 
 interface SongSection {

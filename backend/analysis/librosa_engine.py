@@ -11,6 +11,7 @@ section boundaries.
 
 from .base import Analyzer
 from .beats import beats_available, detect_beats
+from .lyrics import lyrics_available, transcribe
 
 
 class LibrosaAnalyzer(Analyzer):
@@ -30,6 +31,7 @@ class LibrosaAnalyzer(Analyzer):
         result = analyze_audio_file(file_path, include_sections=include_sections)
         result.setdefault("engine", self.name)
         self.add_beats(file_path, result)
+        self.add_lyrics(file_path, result)
         return result
 
     @staticmethod
@@ -48,4 +50,20 @@ class LibrosaAnalyzer(Analyzer):
             result["beats_detected"] = len(beats)
         if downbeats:
             result["downbeats"] = [round(float(time), 2) for time in downbeats]
+        return result
+
+    @staticmethod
+    def add_lyrics(file_path, result, lines=None):
+        """Attach transcribed lyrics to ``result``, or leave it untouched."""
+        if lines is None:
+            if not lyrics_available():
+                return result
+            try:
+                lines = transcribe(file_path)
+            except Exception as exc:  # pragma: no cover - optional model
+                print(f"Lyrics transcription unavailable: {exc}")
+                return result
+
+        if lines:
+            result["lyrics"] = lines
         return result
