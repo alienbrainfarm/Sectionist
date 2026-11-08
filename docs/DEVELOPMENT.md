@@ -403,3 +403,9 @@ See [CI/CD Pipeline](CI_CD.md) for details.
 8. **Documentation**: User guides and API documentation
 
 For questions or clarification on any of these topics, please open an issue or discussion on GitHub.
+
+## Running the backend elsewhere
+
+The frontend and backend are separate processes, so the analysis can run on a
+GPU machine while the interface runs on a laptop. See
+[REMOTE_BACKEND.md](REMOTE_BACKEND.md).
