@@ -20,6 +20,7 @@ try:
         paint_chord_track,
     )
     from . import timeline_paint as paint
+    from .cycle import CycleDrag, CycleRegion, hit_test, paint_cycle
     from .theme import section_color
 except ImportError:
     # Direct import when the frontend directory is on sys.path.
@@ -30,6 +31,7 @@ except ImportError:
         paint_chord_track,
     )
     import timeline_paint as paint
+    from cycle import CycleDrag, CycleRegion, hit_test, paint_cycle
     from theme import section_color
 
 
@@ -49,6 +51,7 @@ class TimelineWidget(QWidget):
     chord_renamed = pyqtSignal(int, str)  # Emit chord index and new name
     chord_boundary_moved = pyqtSignal(int, float)  # Emit boundary index and time
     position_changed = pyqtSignal(float)  # playhead moved (playback or seek)
+    cycle_changed = pyqtSignal(object)  # CycleRegion, or None
 
     def __init__(self):
         super().__init__()
@@ -64,6 +67,8 @@ class TimelineWidget(QWidget):
         self.drag_x = 0.0
         # Shown when there is a duration but no sections yet.
         self.placeholder_text = ""
+        self.cycle = None  # CycleRegion drawn in the ruler
+        self.cycle_drag = CycleDrag()
 
         # For section editing
         self.editing_section = -1
@@ -249,6 +254,9 @@ class TimelineWidget(QWidget):
                 self.selected_chord,
             )
 
+        paint_cycle(
+            painter, self.cycle, self.duration, width, paint.RULER_HEIGHT, rect.height()
+        )
         paint.paint_playhead(
             painter, self.current_position, self.duration, width, rect.height()
         )
@@ -299,6 +307,11 @@ class TimelineWidget(QWidget):
             self.handle_chord_press(x, current_time)
             return
 
+        if y < paint.RULER_HEIGHT and self.duration > 0:
+            seconds = x / self.width() * self.duration
+            self.cycle_drag.press(self.cycle, seconds, x, self.duration, self.width())
+            return
+
         section_idx = self.get_section_at_position(x)
 
         # Check for double-click
@@ -335,6 +348,10 @@ class TimelineWidget(QWidget):
         # strays out of the lane, matching how section resizing behaves.
         if self.chord_resize >= 0:
             self.drag_chord_boundary(x)
+            return
+
+        if self.cycle_drag.active or event.position().y() < paint.RULER_HEIGHT:
+            self.cycle_hover_or_drag(event, x)
             return
 
         if self.resize_mode and self.resize_section >= 0:
@@ -418,6 +435,45 @@ class TimelineWidget(QWidget):
             else:
                 self.setCursor(Qt.CursorShape.ArrowCursor)
 
+    def cycle_hover_or_drag(self, event, x):
+        """Preview a cycle drag, or show which part of the region is under x."""
+        seconds = x / max(self.width(), 1) * self.duration
+        if self.cycle_drag.active:
+            free = bool(event.modifiers() & Qt.KeyboardModifier.AltModifier)
+            region = self.cycle_drag.move(
+                seconds, self.downbeats, self.duration, self.width(), free
+            )
+            self.cycle = region
+            if region is not None and self.cycle_drag.moved:
+                self.drag_x = x
+                self.drag_time_display = (
+                    f"{self._format_drag_time(region.start)} - "
+                    f"{self._format_drag_time(region.end)}"
+                )
+            self.update()
+            return
+        part = hit_test(self.cycle, x, self.duration, self.width())
+        cursor = {
+            "start": Qt.CursorShape.SizeHorCursor,
+            "end": Qt.CursorShape.SizeHorCursor,
+            "inside": Qt.CursorShape.OpenHandCursor,
+        }.get(part, Qt.CursorShape.PointingHandCursor)
+        self.setCursor(cursor)
+
+    def finish_cycle_drag(self, x):
+        original = self.cycle_drag.original
+        mode = self.cycle_drag.mode
+        if not self.cycle_drag.release():
+            self.cycle_changed.emit(self.cycle)
+        elif mode != "new" and original is not None:
+            # A click on the region turns cycling on or off, as in Logic.
+            toggled = CycleRegion(original.start, original.end, not original.enabled)
+            self.cycle_changed.emit(toggled)
+        else:
+            # A click elsewhere in the ruler moves the playhead.
+            self.cycle = original
+            self.section_clicked.emit(x / max(self.width(), 1) * self.duration)
+
     def leaveEvent(self, event):
         """Drop the hover highlight when the pointer leaves."""
         if self.hover_section != -1:
@@ -427,6 +483,8 @@ class TimelineWidget(QWidget):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release events."""
+        if self.cycle_drag.active:
+            self.finish_cycle_drag(event.position().x())
         self.chord_resize = -1
         self.resize_mode = None
         self.resize_section = -1
@@ -479,6 +537,15 @@ class TimelineWidget(QWidget):
                     lambda: self.section_joined.emit(section_idx)
                 )
                 menu.addAction(join_action)
+
+            section = self.sections[section_idx]
+            loop_action = QAction("Loop This Section", self)
+            loop_action.triggered.connect(
+                lambda: self.cycle_changed.emit(
+                    CycleRegion(float(section["start"]), float(section["end"]))
+                )
+            )
+            menu.addAction(loop_action)
 
             # Split section action
             split_action = QAction("Split Section in Half", self)

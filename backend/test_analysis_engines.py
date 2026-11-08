@@ -473,10 +473,11 @@ def test_transcribe_prefers_the_vocal_stem(monkeypatch):
     monkeypatch.setattr(lyrics, "lyrics_available", lambda: True)
     monkeypatch.setattr(lyrics, "_get_model", lambda: FakeModel())
     monkeypatch.setattr(lyrics, "vocals_path", lambda path: "/tmp/vocals.wav")
+    monkeypatch.setattr(lyrics, "load_audio", lambda path: f"decoded:{path}")
 
     lyrics.transcribe("song.mp3")
 
-    assert seen["path"] == "/tmp/vocals.wav"
+    assert seen["path"] == "decoded:/tmp/vocals.wav"
     assert seen["vad"] is False
 
 
@@ -493,7 +494,22 @@ def test_transcribe_falls_back_to_the_mix(monkeypatch):
     monkeypatch.setattr(lyrics, "lyrics_available", lambda: True)
     monkeypatch.setattr(lyrics, "_get_model", lambda: FakeModel())
     monkeypatch.setattr(lyrics, "vocals_path", lambda path: None)
+    monkeypatch.setattr(lyrics, "load_audio", lambda path: f"decoded:{path}")
 
     lyrics.transcribe("song.mp3")
 
-    assert seen["path"] == "song.mp3"
+    assert seen["path"] == "decoded:song.mp3"
+
+
+def test_lyrics_audio_is_decoded_here_not_by_pyav(tmp_path):
+    # faster-whisper 1.2 cannot decode with PyAV 19, so Whisper gets samples.
+    import numpy as np
+    import soundfile as sf
+
+    from analysis import lyrics
+
+    path = tmp_path / "stereo.wav"
+    sf.write(path, np.zeros((44100, 2)), 44100)
+    samples = lyrics.load_audio(path)
+    assert samples.ndim == 1 and len(samples) == 16000
+    assert samples.dtype == np.float32

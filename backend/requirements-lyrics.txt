@@ -1,6 +1,11 @@
-# Optional: lyrics transcription via faster-whisper.
+# Lyrics transcription via faster-whisper. Installed by start_server.sh and
+# setup.sh; without it analysis simply has no lyrics.
 #
 #   pip install -r requirements-lyrics.txt
+#
+# Audio is decoded with librosa and handed to Whisper as samples, so the PyAV
+# version pip picks does not matter (faster-whisper 1.2 cannot decode with
+# PyAV 19 itself).
 #
 # The model (~460 MB for the default "small") downloads on first use. Set
 # SECTIONIST_WHISPER_MODEL to tiny/base/small/medium/large-v3, and

@@ -117,6 +117,8 @@ class StemPlayer:
         self.current_file = None
         self.duration = 0.0
         self.pending_seek = None  # AudioPlayer compatibility; seeks are exact here
+        self.loop = None  # (start_frame, end_frame) while cycling
+        self._loop_seconds = None
 
     # --- loading -------------------------------------------------------------
 
@@ -129,6 +131,18 @@ class StemPlayer:
             self.frame = 0
         self.current_file = source_file
         self.duration = stem_set.frames / stem_set.samplerate
+        self.set_loop(self._loop_seconds)  # frames depend on the sample rate
+
+    def set_loop(self, seconds):
+        """Loop between (start, end) seconds, or None to stop looping."""
+        self._loop_seconds = seconds
+        with self._lock:
+            if seconds is None or self.stem_set is None:
+                self.loop = None
+            else:
+                rate = self.stem_set.samplerate
+                start, end = (int(round(s * rate)) for s in seconds)
+                self.loop = (start, min(end, self.stem_set.frames))
 
     def set_audible(self, names):
         """The stems to hear; everything else is silent."""
@@ -146,15 +160,29 @@ class StemPlayer:
             stem_set = self.stem_set
             if stem_set is None:
                 return out, True
-            start = self.frame
-            end = min(start + frames, stem_set.frames)
-            count = end - start
-            for name in self.audible:
-                data = stem_set.samples.get(name)
-                if data is not None and count > 0:
-                    out[:count] += data[start:end]
-            self.frame = end
-            finished = end >= stem_set.frames
+            written = 0
+            while written < frames:
+                start = self.frame
+                limit = stem_set.frames
+                # Only a playhead inside the region loops; one that started
+                # after it plays on, as in Logic.
+                looping = self.loop is not None and start < self.loop[1]
+                if looping:
+                    limit = self.loop[1]
+                end = min(start + frames - written, limit)
+                for name in self.audible:
+                    data = stem_set.samples.get(name)
+                    if data is not None and end > start:
+                        out[written : written + end - start] += data[start:end]
+                written += max(0, end - start)
+                self.frame = end
+                if looping and end >= limit:
+                    self.frame = self.loop[0]  # wrap without a gap
+                    if self.loop[1] - self.loop[0] <= 0:
+                        break
+                    continue
+                break
+            finished = self.frame >= stem_set.frames
         out *= 1.0 / 32768.0
         np.clip(out, -1.0, 1.0, out=out)
         return out, finished

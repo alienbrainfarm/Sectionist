@@ -32,10 +32,11 @@ try:
     from .analysis_worker import AnalysisWorker
     from .audio_player import AudioPlayer
     from .timeline_widget import TimelineWidget
-    from .lyrics_view import create_lyrics_dock, format_lyrics
+    from .lyrics_view import create_lyrics_dock, show_lyrics
     from .results_text import format_details
     from .stem_lanes import StemLanes, TimelineGutter
     from .stems_controller import StemsController
+    from .cycle import CycleController
     from .panels import (
         EmptyState,
         HeaderBar,
@@ -50,10 +51,11 @@ except ImportError:
     from analysis_worker import AnalysisWorker
     from audio_player import AudioPlayer
     from timeline_widget import TimelineWidget
-    from lyrics_view import create_lyrics_dock, format_lyrics
+    from lyrics_view import create_lyrics_dock, show_lyrics
     from results_text import format_details
     from stem_lanes import StemLanes, TimelineGutter
     from stems_controller import StemsController
+    from cycle import CycleController
     from panels import (
         EmptyState,
         HeaderBar,
@@ -116,6 +118,7 @@ class SectionistMainWindow(QMainWindow):
         self.build_status_bar()
         self.create_menu_bar()
         self.stems = StemsController(self)
+        self.cycle = CycleController(self)
 
         # Lyrics live in a dock so they can be hidden or floated without
         # disturbing the section and chord layout.
@@ -237,7 +240,7 @@ class SectionistMainWindow(QMainWindow):
         file_menu.addSeparator()
         action(file_menu, "&Quit", self.close, "Ctrl+Q")
 
-        playback_menu = menubar.addMenu("&Playback")
+        self.playback_menu = playback_menu = menubar.addMenu("&Playback")
         self.play_action = action(
             playback_menu, "Play / Pause", self.toggle_playback, "Space", False
         )
@@ -338,6 +341,7 @@ class SectionistMainWindow(QMainWindow):
         self.analysis_results = None
         self.display_results({"success": True, "analysis": {}})
         self.stems.song_changed(file_path)
+        self.cycle.clear()
 
         # Load into audio player
         if self.audio_player.load_file(file_path):
@@ -359,6 +363,7 @@ class SectionistMainWindow(QMainWindow):
         # Stop playback
         self.stop_playback()
         self.stems.song_changed(None)
+        self.cycle.clear()
 
         # Reset UI
         self.setWindowTitle("Sectionist")
@@ -424,6 +429,7 @@ class SectionistMainWindow(QMainWindow):
 
         # Show results
         self.display_results(results)
+        self.stems.analysis_finished(results.get("analysis", {}))
 
         # Add to recent files
         if self.current_file:
@@ -468,13 +474,13 @@ class SectionistMainWindow(QMainWindow):
             )
         self.update_current_section()
 
-        lyrics = analysis.get("lyrics", [])
-        if lyrics:
-            self.lyrics_text.setPlainText(format_lyrics(lyrics, sections))
-            self.lyrics_dock.show()
-            self.toggle_lyrics_action.setChecked(True)
-        else:
-            self.lyrics_text.clear()
+        show_lyrics(
+            self.lyrics_dock,
+            self.lyrics_text,
+            self.toggle_lyrics_action,
+            analysis,
+            sections,
+        )
 
     def format_time(self, seconds: float) -> str:
         """Format time in M:SS format."""

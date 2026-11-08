@@ -68,6 +68,19 @@ def _get_model():
         return _model
 
 
+def load_audio(path, sr=16000):
+    """Mono float32 samples at Whisper's rate.
+
+    Decoded here with librosa rather than by faster-whisper, which uses PyAV:
+    faster-whisper 1.2 calls an av.open() argument that PyAV 19 removed, so
+    letting it decode broke lyrics outright on a fresh install.
+    """
+    import librosa
+
+    samples, _rate = librosa.load(str(path), sr=sr, mono=True)
+    return samples
+
+
 def transcribe(file_path):
     """Return ``[{start, end, text}]`` lyric lines, or [] when unavailable."""
     if not lyrics_available():
@@ -77,7 +90,7 @@ def transcribe(file_path):
 
     # The isolated vocal stem when stems are on, otherwise the mix.
     source = vocals_path(file_path) or file_path
-    segments, _info = model.transcribe(str(source), vad_filter=False)
+    segments, _info = model.transcribe(load_audio(source), vad_filter=False)
     return [
         {
             "start": round(float(segment.start), 2),

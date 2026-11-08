@@ -33,6 +33,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 # Stems (Demucs) improve chords and lyrics; analysis uses the mix without them.
 pip install -r requirements-stems.txt ||     echo "⚠️  Demucs did not install; analysis will use the full mix"
+pip install -r requirements-lyrics.txt ||     echo "⚠️  faster-whisper did not install; analysis will have no lyrics"
 
 echo ""
 echo "🎉 Setup complete!"

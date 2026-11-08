@@ -55,6 +55,33 @@ def format_lyrics(lines, sections=None, gap=2.0):
     return "\n".join(blocks)
 
 
+NO_LYRICS = (
+    "No lyrics came back from this analysis.\n\n"
+    "Lyrics need faster-whisper on the backend:\n"
+    "    pip install -r backend/requirements-lyrics.txt\n"
+    "then restart the server and analyse again. An instrumental also has none."
+)
+
+
+def show_lyrics(dock, text, action, analysis, sections):
+    """Fill the lyrics panel after an analysis and show it.
+
+    The panel opens after every analysis, saying why when there are no
+    lyrics, so a missing transcriber is not mistaken for a missing feature.
+    With no analysis (a song just opened or closed) it is only cleared.
+    """
+    lyrics = analysis.get("lyrics", [])
+    if lyrics:
+        text.setPlainText(format_lyrics(lyrics, sections))
+    elif analysis.get("sections"):
+        text.setPlainText(NO_LYRICS)
+    else:
+        text.clear()
+        return
+    dock.show()
+    action.setChecked(True)
+
+
 def create_lyrics_dock(parent):
     """Build the lyrics dock and its text area, attached to ``parent``."""
     from PyQt6.QtCore import Qt

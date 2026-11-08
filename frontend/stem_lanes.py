@@ -89,6 +89,7 @@ class WaveformView(QWidget):
         self.duration = 0.0
         self.position = 0.0
         self.boundaries = []
+        self.cycle = None  # CycleRegion shaded over the waveform
         self._cache = None  # (key, pixmap); the playhead is drawn on top
         self.setMinimumHeight(LANE_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -139,6 +140,12 @@ class WaveformView(QWidget):
     def paintEvent(self, _event):
         painter = QPainter(self)
         painter.drawPixmap(0, 0, self._waveform())
+        if self.cycle is not None and self.duration > 0:
+            left = paint.time_to_x(self.cycle.start, self.duration, self.width())
+            right = paint.time_to_x(self.cycle.end, self.duration, self.width())
+            painter.fillRect(
+                QRectF(left, 0, right - left, self.height()), QColor(245, 197, 66, 28)
+            )
         if self.duration > 0:
             x = paint.time_to_x(self.position, self.duration, self.width())
             painter.setPen(QColor(PLAYHEAD))
@@ -204,6 +211,7 @@ class StemLanes(QWidget):
         self.muted, self.soloed = set(), set()
         self.duration = 0.0
         self.boundaries = []
+        self.cycle = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 6, 0, 0)
@@ -263,6 +271,7 @@ class StemLanes(QWidget):
             row.waveform.seek_requested.connect(self.seek_requested)
             row.waveform.duration = duration
             row.waveform.boundaries = self.boundaries
+            row.waveform.cycle = self.cycle
             self.rows_layout.addWidget(row)
             self.rows.append(row)
         self.setVisible(True)
@@ -288,6 +297,13 @@ class StemLanes(QWidget):
         for row in self.rows:
             row.waveform.boundaries = self.boundaries
             row.waveform.invalidate()
+
+    def set_cycle(self, region):
+        """Shade the looping region (a CycleRegion, or None) in every lane."""
+        self.cycle = region
+        for row in self.rows:
+            row.waveform.cycle = region
+            row.waveform.update()
 
     def set_position(self, position):
         for row in self.rows:

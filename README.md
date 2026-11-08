@@ -26,6 +26,9 @@ optional download. The app detects which is available and picks the better one.
   the timeline
 - 📊 **Interactive timeline** — click, drag, split, join, rename sections; retype or re-boundary chords
 - 🎧 **Playback with seeking**, driven by VLC
+- 🔁 **Cycle region** like Logic's: drag in the ruler to loop a stretch (it snaps
+  to bars; Alt places it freely), click it to toggle, **C** to cycle, or
+  right-click a section → **Loop This Section**
 - 💾 **Save and reload** a song folder (audio copy plus `analysis.json`)
 - 🎤 **Lyrics** — transcribed locally from the vocal stem and shown beside the
   timeline
@@ -73,7 +76,8 @@ cd backend
 ```
 
 This creates a virtual environment, installs dependencies (including Demucs
-for stems, which brings PyTorch) and serves `http://127.0.0.1:8765`. On this
+for stems, which brings PyTorch, and faster-whisper for lyrics) and serves
+`http://127.0.0.1:8765`. On this
 path you get the heuristic engine.
 
 ### 2. Frontend
@@ -190,7 +194,10 @@ Stems are on by default whenever Demucs is installed (`start_server.sh` and
   so riffs that change chord every beat or two are followed. On six synthetic
   songs with known chords this raised accuracy from 69% to 91% (99% with
   perfect stems, so separation quality is the limit).
-- **Lyrics** are transcribed from the vocal stem.
+- **Lyrics** are transcribed from the vocal stem, and the lyrics panel opens
+  after every analysis (saying why if none came back).
+- **The app loads the stems by itself** after an analysis that used them, so
+  the lanes appear without pressing **Split stems**.
 - **A guard against bad separations.** Demucs sometimes folds a
   voice-and-guitar recording almost entirely into the vocal stem. When the
   accompaniment stems hold under 10% of the song's energy (band recordings
