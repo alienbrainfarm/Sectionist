@@ -22,7 +22,7 @@ optional download. The app detects which is available and picks the better one.
 - 📏 **Bar-aligned boundaries** — sections snap to detected downbeats
 - 🎹 **Key and tempo detection**, including key changes
 - 🎸 **Chord detection** — beat-synchronous, with musical continuity, drawn on the timeline
-- 📊 **Interactive timeline** — click, drag, split, join, rename sections
+- 📊 **Interactive timeline** — click, drag, split, join, rename sections; retype or re-boundary chords
 - 🎧 **Playback with seeking**, driven by VLC
 - 💾 **Save and reload** a song folder (audio copy plus `analysis.json`)
 - 🧠 **Learns from your corrections** — train a small label model on songs you fix
@@ -325,8 +325,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 - [x] Downbeat-aligned section boundaries
 - [x] Learning from user corrections
 - [x] Chord track on the timeline
+- [x] Chord editing (rename, drag boundaries)
 - [ ] Bar lines drawn in the timeline
-- [ ] Chord mapping UI
+- [ ] Chord vocabulary beyond major/minor triads
 - [ ] Key change visualisation
 - [ ] Local database for song modifications
 - [ ] GPU batching and caching of embeddings

@@ -116,6 +116,8 @@ class SectionistMainWindow(QMainWindow):
         self.timeline.section_separator_moved.connect(self.move_section_separator)
         self.timeline.section_joined.connect(self.join_section_with_next)
         self.timeline.section_split.connect(self.split_section)
+        self.timeline.chord_renamed.connect(self.rename_chord)
+        self.timeline.chord_boundary_moved.connect(self.move_chord_boundary)
         timeline_layout.addWidget(self.timeline)
 
         # Playback controls
@@ -706,6 +708,38 @@ class SectionistMainWindow(QMainWindow):
             if not visible
             else "Hide Analysis Details Panel"
         )
+
+    def chord_list(self):
+        """The live chord list inside the current analysis results."""
+        return self.analysis_results.get("analysis", {}).get("chords", [])
+
+    def rename_chord(self, chord_idx, new_name):
+        """Rename a chord and refresh the panel."""
+        chords = self.chord_list()
+        if 0 <= chord_idx < len(chords):
+            chords[chord_idx]["name"] = new_name
+            self.display_results(self.analysis_results)
+            self.status_label.setText(f"Chord {chord_idx + 1} renamed to '{new_name}'")
+
+    def move_chord_boundary(self, boundary_idx, new_time):
+        """Move the boundary between two chords, keeping them contiguous."""
+        chords = self.chord_list()
+        if not 0 <= boundary_idx < len(chords) - 1:
+            return
+
+        left = chords[boundary_idx]
+        right = chords[boundary_idx + 1]
+        lower = float(left.get("start", 0)) + 0.05
+        upper = float(right.get("end", 0)) - 0.05
+        if upper <= lower:
+            return
+
+        boundary = round(max(lower, min(float(new_time), upper)), 2)
+        left["end"] = boundary
+        right["start"] = boundary
+        # The timeline holds the same list objects, so a repaint is enough
+        # during a drag; the panel catches up on rename/analysis.
+        self.timeline.update()
 
     def rename_section(self, section_idx, new_name):
         """Rename a section."""

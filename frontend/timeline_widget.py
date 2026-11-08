@@ -11,39 +11,26 @@ from PyQt6.QtWidgets import QWidget, QInputDialog, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QAction
 
+try:
+    # Package import (frontend/__init__.py imports this module eagerly).
+    from .chord_track import (
+        CHORD_LANE_HEIGHT,
+        chord_at_position,
+        chord_boundary_at,
+        paint_chord_track,
+    )
+except ImportError:
+    # Direct import when the frontend directory is on sys.path.
+    from chord_track import (
+        CHORD_LANE_HEIGHT,
+        chord_at_position,
+        chord_boundary_at,
+        paint_chord_track,
+    )
+
 
 class TimelineWidget(QWidget):
     """Timeline visualization widget."""
-
-    CHORD_LANE_HEIGHT = 30
-    PITCH_CLASSES = (
-        "C",
-        "C#",
-        "D",
-        "D#",
-        "E",
-        "F",
-        "F#",
-        "G",
-        "G#",
-        "A",
-        "A#",
-        "B",
-    )
-    CHORD_PALETTE = (
-        "#4E79A7",
-        "#F28E2B",
-        "#E15759",
-        "#76B7B2",
-        "#59A14F",
-        "#EDC948",
-        "#B07AA1",
-        "#FF9DA7",
-        "#9C755F",
-        "#BAB0AC",
-        "#86BCB6",
-        "#D37295",
-    )
 
     section_clicked = pyqtSignal(float)  # Emit timestamp when section is clicked
     section_renamed = pyqtSignal(int, str)  # Emit section index and new name
@@ -55,6 +42,8 @@ class TimelineWidget(QWidget):
     )  # Emit separator index and new position
     section_joined = pyqtSignal(int)  # Emit section index to join with next section
     section_split = pyqtSignal(int, float)  # Emit section index and split position
+    chord_renamed = pyqtSignal(int, str)  # Emit chord index and new name
+    chord_boundary_moved = pyqtSignal(int, float)  # Emit boundary index and time
 
     def __init__(self):
         super().__init__()
@@ -78,6 +67,11 @@ class TimelineWidget(QWidget):
         self.last_click_time = 0
         self.drag_start_x = 0
         self.drag_time_display = ""  # Store current drag time for display
+
+        # For chord editing
+        self.selected_chord = -1
+        self.chord_resize = -1
+        self.last_chord_click_time = 0.0
 
         # Define consistent colors for section types
         self.section_colors = {
@@ -119,26 +113,95 @@ class TimelineWidget(QWidget):
     def set_chords(self, chords: List[Dict]):
         """Set the chord track drawn under the sections."""
         self.chords = chords or []
+        self.selected_chord = -1
+        self.chord_resize = -1
         self.update()
 
-    def _chord_color(self, name):
-        """Colour a chord by its root, darker for minor."""
-        text = str(name).strip()
-        minor = False
-        if text.endswith("m7"):
-            text, minor = text[:-2], True
-        elif text.endswith("maj7"):
-            text = text[:-4]
-        elif text.endswith("7"):
-            text = text[:-1]
-        elif text.endswith("m"):
-            text, minor = text[:-1], True
+    # --- chord track geometry and editing ---------------------------------
 
-        try:
-            color = QColor(self.CHORD_PALETTE[self.PITCH_CLASSES.index(text)])
-        except ValueError:
-            return QColor(138, 138, 138)
-        return color.darker(125) if minor else color
+    def chord_lane_top(self):
+        """Y coordinate where the chord track starts."""
+        if not self.chords:
+            return self.height()
+        return self.height() - CHORD_LANE_HEIGHT
+
+    def is_in_chord_lane(self, y):
+        return bool(self.chords) and y >= self.chord_lane_top()
+
+    def get_chord_at_position(self, x):
+        """Index of the chord under ``x``, or -1."""
+        return chord_at_position(self.chords, self.duration, self.width(), x)
+
+    def get_chord_boundary(self, x, tolerance=6):
+        """Index of the boundary between chord ``i`` and ``i+1`` near ``x``."""
+        return chord_boundary_at(self.chords, self.duration, self.width(), x, tolerance)
+
+    def _format_drag_time(self, timestamp):
+        minutes = int(timestamp // 60)
+        seconds = int(timestamp % 60)
+        milliseconds = int((timestamp % 1) * 1000)
+        return f"{minutes}:{seconds:02d}.{milliseconds:03d}"
+
+    def handle_chord_press(self, x, current_time):
+        """Select, rename or start dragging a chord boundary."""
+        index = self.get_chord_at_position(x)
+        if index < 0:
+            return
+
+        if current_time - self.last_chord_click_time < 0.3:
+            self.start_rename_chord(index)
+            return
+        self.last_chord_click_time = current_time
+
+        boundary = self.get_chord_boundary(x)
+        if boundary >= 0:
+            self.chord_resize = boundary
+            self.setCursor(Qt.CursorShape.SizeHorCursor)
+        else:
+            self.selected_chord = index
+            self.update()
+
+    def drag_chord_boundary(self, x):
+        """Move the boundary between two chords, clamped to their span."""
+        index = self.chord_resize
+        if index < 0 or index + 1 >= len(self.chords):
+            return
+
+        left = self.chords[index]
+        right = self.chords[index + 1]
+        timestamp = (x / self.width()) * self.duration
+        lower = float(left.get("start", 0)) + 0.05
+        upper = float(right.get("end", 0)) - 0.05
+        if upper <= lower:
+            return
+
+        new_time = max(lower, min(timestamp, upper))
+        self.drag_time_display = self._format_drag_time(new_time)
+        self.chord_boundary_moved.emit(index, new_time)
+        self.update()
+
+    def start_rename_chord(self, chord_idx):
+        """Ask for a new chord name and emit the change."""
+        if chord_idx < 0 or chord_idx >= len(self.chords):
+            return
+        current = str(self.chords[chord_idx].get("name", ""))
+        name, ok = QInputDialog.getText(
+            self, "Rename Chord", "Chord name:", text=current
+        )
+        if ok and name.strip():
+            self.chord_renamed.emit(chord_idx, name.strip())
+
+    def show_chord_menu(self, event):
+        """Context menu for a chord block."""
+        index = self.get_chord_at_position(event.pos().x())
+        if index < 0:
+            return
+        name = self.chords[index].get("name", "")
+        menu = QMenu(self)
+        rename_action = QAction(f"Rename '{name}'", self)
+        rename_action.triggered.connect(lambda: self.start_rename_chord(index))
+        menu.addAction(rename_action)
+        menu.exec(event.globalPos())
 
     def set_duration(self, duration: float):
         """Set the total duration."""
@@ -158,9 +221,7 @@ class TimelineWidget(QWidget):
         # Background
         painter.fillRect(rect, QColor(240, 240, 240))
 
-        chord_lane = (
-            rect.height() - self.CHORD_LANE_HEIGHT if self.chords else rect.height()
-        )
+        chord_lane = rect.height() - CHORD_LANE_HEIGHT if self.chords else rect.height()
         section_bottom = chord_lane - (6 if self.chords else 0)
 
         if self.duration > 0 and self.sections:
@@ -222,40 +283,14 @@ class TimelineWidget(QWidget):
 
         # Draw the chord track beneath the sections
         if self.duration > 0 and self.chords:
-            lane_top = rect.height() - self.CHORD_LANE_HEIGHT
-            painter.fillRect(
-                0, lane_top, rect.width(), self.CHORD_LANE_HEIGHT, QColor(38, 38, 38)
+            paint_chord_track(
+                painter,
+                self.chords,
+                self.duration,
+                rect.width(),
+                rect.height(),
+                self.selected_chord,
             )
-            painter.setPen(QPen(QColor(120, 120, 120), 1))
-            painter.drawLine(0, lane_top, rect.width(), lane_top)
-            painter.setFont(QFont("Arial", 9))
-
-            for chord in self.chords:
-                start = float(chord.get("start", 0))
-                end = float(chord.get("end", 0))
-                name = chord.get("name", "")
-                if end <= start:
-                    continue
-                x1 = int((start / self.duration) * rect.width())
-                x2 = int((end / self.duration) * rect.width())
-                width = max(1, x2 - x1)
-                block = (x1, lane_top + 3, width, self.CHORD_LANE_HEIGHT - 6)
-
-                painter.fillRect(
-                    block[0], block[1], block[2], block[3], self._chord_color(name)
-                )
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.drawRect(block[0], block[1], block[2], block[3])
-                if width >= 22:
-                    painter.setPen(QPen(QColor(0, 0, 0)))
-                    painter.drawText(
-                        block[0],
-                        block[1],
-                        block[2],
-                        block[3],
-                        Qt.AlignmentFlag.AlignCenter,
-                        name,
-                    )
 
         # Draw current position indicator
         if self.duration > 0:
@@ -332,6 +367,12 @@ class TimelineWidget(QWidget):
 
         current_time = time.time()
         x = event.position().x()
+        y = event.position().y()
+
+        if self.is_in_chord_lane(y):
+            self.handle_chord_press(x, current_time)
+            return
+
         section_idx = self.get_section_at_position(x)
 
         # Check for double-click
@@ -363,6 +404,12 @@ class TimelineWidget(QWidget):
     def mouseMoveEvent(self, event):
         """Handle mouse move events."""
         x = event.position().x()
+
+        # Once a chord boundary drag starts it continues even if the pointer
+        # strays out of the lane, matching how section resizing behaves.
+        if self.chord_resize >= 0:
+            self.drag_chord_boundary(x)
+            return
 
         if self.resize_mode and self.resize_section >= 0:
             # Handle section resizing/separator dragging
@@ -443,6 +490,7 @@ class TimelineWidget(QWidget):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release events."""
+        self.chord_resize = -1
         self.resize_mode = None
         self.resize_section = -1
         self.drag_time_display = ""  # Clear drag time display
@@ -467,6 +515,10 @@ class TimelineWidget(QWidget):
 
     def contextMenuEvent(self, event):
         """Handle right-click context menu."""
+        if self.is_in_chord_lane(event.pos().y()):
+            self.show_chord_menu(event)
+            return
+
         x = event.x()
         section_idx = self.get_section_at_position(x)
 
