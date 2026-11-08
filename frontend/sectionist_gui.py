@@ -20,6 +20,7 @@ This is the main entry point. The functionality has been split into separate mod
 - main_window.py - Main application window and UI logic
 """
 
+import signal
 import sys
 
 # Check for required dependencies
@@ -60,6 +61,18 @@ def main():
     """Main application entry point."""
     app = QApplication(sys.argv)
 
+    # Qt runs its own event loop in C++, which never returns control to the
+    # interpreter, so Python never gets a chance to raise KeyboardInterrupt and
+    # Ctrl-C appears to do nothing. A signal handler plus a periodic no-op
+    # timer gives the interpreter a chance to run it.
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+
+    from PyQt6.QtCore import QTimer
+
+    heartbeat = QTimer()
+    heartbeat.start(200)
+    heartbeat.timeout.connect(lambda: None)
+
     # Set application properties
     app.setApplicationName("Sectionist")
     app.setApplicationVersion("2.0.0")
@@ -70,7 +83,10 @@ def main():
     window.load_recent_files()  # Load recent files on startup
     window.show()
 
-    # Run application
+    # Release playback and worker threads before the process exits, otherwise
+    # VLC's threads can keep it alive after the window closes.
+    app.aboutToQuit.connect(window.shutdown)
+
     sys.exit(app.exec())
 
 

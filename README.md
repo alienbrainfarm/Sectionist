@@ -243,8 +243,7 @@ Sectionist/
     └── spike_songformer.py        # measure the model on any audio file
 ```
 
-Model checkpoints and caches (`.hf-cache/`, `.torch-cache/`, `.venv-songformer/`)
-are gitignored.
+Model checkpoints and caches (`.hf-cache/`, `.torch-cache/`) are gitignored.
 
 ## Development setup
 

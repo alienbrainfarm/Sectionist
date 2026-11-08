@@ -6,18 +6,17 @@ local snapshot, segments one file and prints timing plus the detected sections.
 
 Setup (see docs/MODEL_RESEARCH.md for the full story):
 
-    python3 -m venv .venv-songformer
-    .venv-songformer/bin/pip install torch torchaudio "transformers>=4.45,<5" \
-        x-transformers einops soundfile numpy scipy librosa omegaconf \
-        ema-pytorch muq msaf
-    .venv-songformer/bin/python -c "from huggingface_hub import snapshot_download; \
-        snapshot_download('ASLP-lab/SongFormer', local_dir='.hf-cache/SongFormer')"
+    cd backend
+    python3 -m venv venv && source venv/bin/activate
+    pip install -r requirements.txt -r requirements-songformer.txt
+    python -c "from huggingface_hub import snapshot_download; \
+        snapshot_download('ASLP-lab/SongFormer', local_dir='../.hf-cache/SongFormer')"
 
-Usage:
+Usage, from the repository root:
 
-    HF_HOME="$PWD/.hf-cache" .venv-songformer/bin/python \
+    HF_HOME="$PWD/.hf-cache" backend/venv/bin/python \
         tools/spike_songformer.py song.mp3
-    SPIKE_DEVICE=mps ... # or cpu (default), mps, cuda
+    SPIKE_DEVICE=cpu ...   # or mps, cuda
 
 Known traps: transformers 5.x breaks MuQ's constructor; the snapshot directory
 must be on sys.path; msaf needs a one-line scipy patch. See the doc.
