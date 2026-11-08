@@ -23,3 +23,6 @@ htmlcov/
 # Local model experiments (not part of the app)
 .venv-songformer/
 .hf-cache/
+
+# Local test media (not distributed)
+media/

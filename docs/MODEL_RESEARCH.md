@@ -197,6 +197,70 @@ That is not a fair test, because the input is sine-wave harmony with synthetic
 percussion and sits far outside the model's training distribution. Quality on
 real music is still unmeasured and needs a test with actual songs.
 
+### Test on real music
+
+Four real tracks (320 kbps CBR MP3, 44.1 kHz stereo), run on CPU:
+
+| Track | Duration | Analysis time | Speed | Sections (raw / merged) |
+| --- | --- | --- | --- | --- |
+| `AV Man.mp3` | 192 s | 76 s | 2.5x | 9 / 6 |
+| `theone.mp3` | 192 s | 74 s | 2.6x | 13 / 8 |
+| `DownByTheRiver.mp3` | 73 s | 22 s | 3.4x | 3 / 2 |
+| `paperback writer.mp3` | 34 s | 11 s | 3.1x | 3 / 3 |
+
+Peak memory was 8.1 GB. Analysis is linear at roughly 2.5-3.4x realtime, so a
+four-minute song takes about 90 s on an M1 Pro and 2-4 s on a modern GPU.
+
+SongFormer predicts boundaries and labels with independent heads, so it often
+emits a boundary where the label does not change (a repeated verse, for
+example). Merging adjacent identical labels — the `merge_continuous_segments`
+option in the authors' evaluation script — gives the useful view:
+
+```
+theone.mp3                        AV Man.mp3
+  0.00  16.0  intro                 0.00  23.9  intro
+ 15.96  32.0  verse                23.88  24.1  verse
+ 48.00  31.9  chorus               48.00  23.9  chorus
+ 79.92  16.1  inst                 71.88  24.0  inst
+ 96.00  31.9  verse                95.88  48.0  verse
+127.93  16.1  pre-chorus          143.89  48.1  inst
+144.01  46.0  chorus
+189.97   2.0  silence
+```
+
+`theone.mp3` comes out as a textbook pop form — intro, verse, chorus,
+instrumental, verse, pre-chorus, chorus, silence. The pre-chorus detection is
+notable: that is the kind of fine distinction the heuristic pipeline could not
+make.
+
+### Control test: are the boundaries real?
+
+The 16- and 24-second section lengths in the two long tracks initially looked
+like a fixed grid artefact, so this was tested directly by trimming the start of
+a file and re-running. Coordinates are reported in the original file's timeline:
+
+| Trim | First boundary | Second boundary |
+| --- | --- | --- |
+| 0 s | 11.88 | 29.76 |
+| 4 s | 11.80 | 32.20 |
+| 9 s | 11.88 | 32.16 |
+
+The first boundary is locked to the audio content (it moves with the trim and
+lands back at the same original timestamp within 0.08 s). The final
+music-to-silence boundary drifts by up to 2.4 s, which suggests tail handling is
+less stable than interior boundaries.
+
+Conclusion: boundaries track content rather than a grid. The regular section
+lengths appear to be genuine 8-bar/12-bar structure in these particular
+electronic productions, not an artefact.
+
+### What is still unmeasured
+
+There is no ground truth here — no hand-labelled reference for these tracks — so
+this demonstrates plausibility, stability and speed, not accuracy. Formal
+evaluation would need annotated songs, ideally SongFormBench itself, which ships
+300 expert-verified annotations.
+
 ### Setup gotchas (cost roughly an hour to work through)
 
 These are not documented in the model card and are worth recording:
