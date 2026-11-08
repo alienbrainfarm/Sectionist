@@ -11,12 +11,22 @@ from PyQt6.QtWidgets import QWidget, QInputDialog, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QAction
 
-from chord_track import (
-    CHORD_LANE_HEIGHT,
-    chord_at_position,
-    chord_boundary_at,
-    paint_chord_track,
-)
+try:
+    # Package import (frontend/__init__.py imports this module eagerly).
+    from .chord_track import (
+        CHORD_LANE_HEIGHT,
+        chord_at_position,
+        chord_boundary_at,
+        paint_chord_track,
+    )
+except ImportError:
+    # Direct import when the frontend directory is on sys.path.
+    from chord_track import (
+        CHORD_LANE_HEIGHT,
+        chord_at_position,
+        chord_boundary_at,
+        paint_chord_track,
+    )
 
 
 class TimelineWidget(QWidget):
