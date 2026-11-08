@@ -461,19 +461,20 @@ class SectionistMainWindow(QMainWindow):
         # Chords
         chords = analysis.get("chords", [])
         if chords:
-            details_text += "Chord Progression:\n"
-            for chord in chords[:10]:  # Show first 10 chords
+            details_text += f"Chords ({len(chords)}):\n"
+            for chord in chords:
                 name = chord.get("name", "Unknown")
                 start = chord.get("start", 0)
                 end = chord.get("end", 0)
-                details_text += f"  {self.format_time(start)}: {name}\n"
-            if len(chords) > 10:
-                details_text += f"  ... and {len(chords) - 10} more chords\n"
+                details_text += (
+                    f"  {self.format_time(start)} - {self.format_time(end)}: {name}\n"
+                )
 
         self.details_text.setPlainText(details_text)
 
         # Update timeline
         self.timeline.set_sections(sections)
+        self.timeline.set_chords(chords)
 
     def format_time(self, seconds: float) -> str:
         """Format time in MM:SS format."""

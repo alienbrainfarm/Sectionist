@@ -95,6 +95,7 @@ def test_display_results_populates_panels_and_timeline(qapp):
         assert "Intro" in sections_text
         assert "Verse 1" in sections_text
         assert len(window.timeline.sections) == 2
+        assert len(window.timeline.chords) == 1
 
         details_text = window.details_text.toPlainText()
         assert "120.0 BPM" in details_text
@@ -163,3 +164,38 @@ def test_modules_stay_reviewably_sized():
             oversized[name] = (line_count, limit)
 
     assert oversized == {}, f"modules exceed their size budget: {oversized}"
+
+
+def test_chord_track_renders_without_error(qapp):
+    """Painting with a chord track must not raise (it is pure paint code)."""
+    from PyQt6.QtGui import QPixmap
+
+    from timeline_widget import TimelineWidget
+
+    widget = TimelineWidget()
+    widget.resize(800, 160)
+    widget.set_duration(60.0)
+    widget.set_sections([{"name": "Verse", "start": 0.0, "end": 60.0}])
+    widget.set_chords(
+        [
+            {"name": "D", "start": 0.0, "end": 20.0},
+            {"name": "Em", "start": 20.0, "end": 40.0},
+            {"name": "A", "start": 40.0, "end": 60.0},
+        ]
+    )
+
+    pixmap = QPixmap(800, 160)
+    widget.render(pixmap)
+
+    assert len(widget.chords) == 3
+    assert not pixmap.isNull()
+
+
+def test_chord_colours_distinguish_quality(qapp):
+    from timeline_widget import TimelineWidget
+
+    widget = TimelineWidget()
+
+    assert widget._chord_color("C").name() != widget._chord_color("Cm").name()
+    # Unknown labels fall back to grey rather than raising.
+    assert widget._chord_color("??").name() == "#8a8a8a"
