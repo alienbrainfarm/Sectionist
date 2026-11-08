@@ -52,9 +52,11 @@ except ImportError:
 try:
     # Try relative imports first (when run as module)
     from .main_window import SectionistMainWindow
+    from .theme import apply_theme
 except ImportError:
     # Fall back to absolute imports (when run directly)
     from main_window import SectionistMainWindow
+    from theme import apply_theme
 
 
 def main():
@@ -65,9 +67,12 @@ def main():
     # interpreter, so Python never gets a chance to raise KeyboardInterrupt and
     # Ctrl-C appears to do nothing. A signal handler plus a periodic no-op
     # timer gives the interpreter a chance to run it.
-    signal.signal(signal.SIGINT, lambda *_: app.quit())
-
+    # The quit is queued rather than called: a Ctrl-C that arrives while the
+    # window is still being built would otherwise call quit() before exec()
+    # starts the loop, which does nothing, and the app would keep running.
     from PyQt6.QtCore import QTimer
+
+    signal.signal(signal.SIGINT, lambda *_: QTimer.singleShot(0, app.quit))
 
     heartbeat = QTimer()
     heartbeat.start(200)
@@ -77,6 +82,7 @@ def main():
     app.setApplicationName("Sectionist")
     app.setApplicationVersion("2.0.0")
     app.setOrganizationName("Sectionist")
+    apply_theme(app)
 
     # Create and show main window
     window = SectionistMainWindow()

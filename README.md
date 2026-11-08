@@ -31,8 +31,6 @@ optional download. The app detects which is available and picks the better one.
 
 ### Planned
 
-- 📊 Bar lines drawn in the timeline
-- 🎨 Enhanced look and feel
 - 💾 Local database for song modifications
 - 🎸 Chord mapping UI
 - 📁 Export (PDF, text, MIDI)

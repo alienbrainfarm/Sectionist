@@ -65,6 +65,10 @@ def create_lyrics_dock(parent):
 
     text = QTextEdit()
     text.setReadOnly(True)
+    text.document().setDocumentMargin(14)
+    font = text.font()
+    font.setPointSizeF(font.pointSizeF() + 1)
+    text.setFont(font)
     text.setPlaceholderText(
         "Lyrics appear here after an analysis with transcription enabled."
     )
