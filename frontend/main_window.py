@@ -477,6 +477,7 @@ class SectionistMainWindow(QMainWindow):
         # Update timeline
         self.timeline.set_sections(sections)
         self.timeline.set_chords(chords)
+        self.timeline.set_downbeats(analysis.get("downbeats", []))
 
     def format_time(self, seconds: float) -> str:
         """Format time in MM:SS format."""

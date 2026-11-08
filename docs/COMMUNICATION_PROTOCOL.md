@@ -118,7 +118,9 @@ curl -X POST -F 'audio=@/path/to/song.mp3' http://127.0.0.1:8765/analyze
         "confidence": 0.92
       }
     ],
-    "beats_detected": 360
+    "beats_detected": 360,
+    "downbeats": [0.0, 2.06, 4.12, 6.18],
+    "engine": "songformer"
   }
 }
 ```
@@ -154,6 +156,8 @@ interface AnalysisData {
   key: string;            // Detected musical key (e.g., "C major")
   sections: SongSection[]; // Detected song sections
   beats_detected: number;  // Number of beats detected
+  downbeats?: number[];    // Bar starts in seconds (present when beat tracking ran)
+  engine?: string;         // "librosa" or "songformer"
 }
 
 interface SongSection {

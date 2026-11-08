@@ -341,3 +341,30 @@ def test_load_corrections_reads_saved_analysis(tmp_path):
     sections = load_corrections(path)
 
     assert [section["label"] for section in sections] == ["verse", "pre-chorus"]
+
+
+# --- beat enrichment ---------------------------------------------------------
+
+
+def test_add_beats_attaches_count_and_grid():
+    from analysis.librosa_engine import LibrosaAnalyzer
+
+    result = {}
+    LibrosaAnalyzer.add_beats(
+        "song.mp3", result, beats=[0.5, 1.0, 1.5], downbeats=[0.5, 2.5]
+    )
+
+    assert result["beats_detected"] == 3
+    assert result["downbeats"] == [0.5, 2.5]
+
+
+def test_add_beats_is_a_noop_without_the_optional_model(monkeypatch):
+    from analysis.librosa_engine import LibrosaAnalyzer
+
+    monkeypatch.setattr("analysis.librosa_engine.beats_available", lambda: False)
+    result = {"beats_detected": 7}
+
+    LibrosaAnalyzer.add_beats("song.mp3", result)
+
+    assert result == {"beats_detected": 7}
+    assert "downbeats" not in result

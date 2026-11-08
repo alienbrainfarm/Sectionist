@@ -25,7 +25,6 @@ from pathlib import Path
 import numpy as np
 
 from .base import Analyzer
-from .beats import beats_available, detect_beats
 from .calibration import SoftmaxRegression, apply_calibration, reduce_probabilities
 from .device import resolve_device
 from .librosa_engine import LibrosaAnalyzer
@@ -221,15 +220,6 @@ class SongFormerAnalyzer(Analyzer):
         _, _, reduced, frame_rate, _ = self._infer(file_path)
         return reduced, frame_rate
 
-    def _detect_beats(self, file_path):
-        if not beats_available():
-            return None, None
-        try:
-            return detect_beats(file_path, device=self.device)
-        except Exception as exc:  # pragma: no cover - depends on optional model
-            print(f"Beat tracking unavailable: {exc}")
-            return None, None
-
     def analyze(self, file_path: str) -> dict:
         # Tempo, key and chords still come from the existing pipeline.
         result = self._baseline.analyze(file_path)
@@ -246,11 +236,9 @@ class SongFormerAnalyzer(Analyzer):
 
         sections = finalize_sections(prepared)
 
-        beats, downbeats = self._detect_beats(file_path)
+        downbeats = result.get("downbeats")
         if downbeats:
             sections = snap_boundaries(sections, downbeats)
-        if beats:
-            result["beats_detected"] = len(beats)
 
         result["sections"] = sections
         result["engine"] = self.name
