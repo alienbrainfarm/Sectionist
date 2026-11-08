@@ -11,6 +11,9 @@ estimates key, tempo and chords, and shows everything on an editable timeline.
 It is a PyQt6 desktop app talking to a local Flask backend over HTTP. Everything
 runs on your machine — no accounts, no uploads, no cloud.
 
+![Sectionist: a song split into stems, with Chorus 1 looping and the vocals
+muted, sections and chords locked, and the lyrics grouped by section](docs/images/sectionist.png)
+
 Segmentation can run on either of two engines: a fast heuristic built on
 librosa, or the **SongFormer** model, which is far more accurate but needs an
 optional download. The app detects which is available and picks the better one.
