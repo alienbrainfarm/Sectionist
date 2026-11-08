@@ -15,7 +15,8 @@ Setup (see docs/MODEL_RESEARCH.md for the full story):
 
 Usage:
 
-    HF_HOME="$PWD/.hf-cache" .venv-songformer/bin/python tools/spike_songformer.py song.mp3
+    HF_HOME="$PWD/.hf-cache" .venv-songformer/bin/python \
+        tools/spike_songformer.py song.mp3
     SPIKE_DEVICE=mps ... # or cpu (default), mps, cuda
 
 Known traps: transformers 5.x breaks MuQ's constructor; the snapshot directory
@@ -28,7 +29,9 @@ import resource
 import sys
 import time
 
-DEFAULT_LOCAL_DIR = os.path.join(os.path.dirname(__file__), "..", ".hf-cache", "SongFormer")
+DEFAULT_LOCAL_DIR = os.path.join(
+    os.path.dirname(__file__), "..", ".hf-cache", "SongFormer"
+)
 
 
 def peak_rss_gb():

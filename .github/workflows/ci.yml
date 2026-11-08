@@ -43,6 +43,11 @@ jobs:
           cd backend
           black --check --diff .
 
+      - name: Lint and format-check tools
+        run: |
+          flake8 tools --count --statistics
+          black --check --diff tools
+
       - name: Run tests
         run: |
           cd backend

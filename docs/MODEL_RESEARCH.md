@@ -173,15 +173,53 @@ The plan is implemented in [backend/analysis](../backend/analysis).
   "trust the more confident instance") pushes both towards `chorus` — the wrong
   answer. A conservative version is therefore deliberately *not* enabled.
 
-  The useful workaround is user-driven: a "apply this label to similar
-  sections" action in the editor would let a correction made once propagate
-  deterministically. Fine-tuning a label head on corrected songs is the other
-  route. Both are follow-ups, not part of this change.
+  The remedy is a label model trained on your own corrected songs (below). It
+  cannot rescue *this* example, because the network's belief points the wrong
+  way and no reweighting of a wrong belief recovers the truth. What it can do
+  is learn systematic bias across a library — "on my songs, sections the
+  network calls chorus at 0.7 are usually pre-chorus" — once it has seen enough
+  corrected examples.
 - **Weak boundaries can be missed.** The 48-80 s section contains material that
   is split elsewhere, yet no boundary was placed inside it. The UI can split
   sections manually.
 - Sounds are not snapped to beats, so boundary precision is limited to the
   model's frame rate (~8.3 frames per second after downsampling).
+
+### Learning from corrections
+
+The app already has the raw material: correcting sections and using "Save Song"
+writes a folder containing the audio and an `analysis.json` with the corrected
+sections. `tools/train_label_model.py` turns those folders into a model.
+
+What it trains is a multinomial logistic regression over what the network
+already believes about each section: its eight mean label probabilities, plus
+log duration, relative position, normalised index, and first/last flags. It is a
+learned calibration layer — **not** fine-tuning of SongFormer's transformer, and
+not a replacement for the encoders. That choice is deliberate: it trains in
+under a second on a CPU, it needs no embedding cache, and it is inspectable.
+
+```bash
+python tools/train_label_model.py --songs path/to/saved/songs --dry-run
+python tools/train_label_model.py --songs path/to/saved/songs
+```
+
+The model is written to `.hf-cache/label_model.npz` and picked up automatically
+by the backend on the next start. Delete the file (or point
+`SECTIONIST_LABEL_MODEL` elsewhere) to disable it.
+
+Caveats worth stating plainly:
+
+- It can only reweight the network's existing beliefs, so it cannot find
+  structure the network missed.
+- It needs dozens of genuinely corrected sections. With fewer than twelve the
+  tool warns, and the reported training accuracy is meaningless because the
+  model is fitting noise.
+- Corrected songs are only as good as the corrections. Everything saved is
+  treated as ground truth.
+
+True fine-tuning — caching MuQ/MusicFM embeddings and training SongFormer's
+transformer head on them — remains possible later and would have a higher
+ceiling, at the cost of a GPU and a much heavier pipeline.
 
 ## Spike results
 
