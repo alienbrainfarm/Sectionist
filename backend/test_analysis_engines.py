@@ -8,7 +8,12 @@ import pytest
 
 from analysis import EngineUnavailable, available_engines, get_analyzer
 from analysis.librosa_engine import LibrosaAnalyzer
-from analysis.sections import display_names, merge_consecutive, to_sections
+from analysis.sections import (
+    display_names,
+    merge_consecutive,
+    snap_boundaries,
+    to_sections,
+)
 from analysis.songformer_engine import SongFormerAnalyzer, resolve_device
 
 # --- section post-processing -------------------------------------------------
@@ -139,3 +144,87 @@ def test_constructor_does_not_import_torch(monkeypatch):
     engine = SongFormerAnalyzer(directory="/nonexistent", device="cpu")
 
     assert engine.device == "cpu"
+
+
+# --- confidence --------------------------------------------------------------
+
+
+def test_merge_consecutive_combines_confidence_weighted():
+    segments = [
+        {"start": 0.0, "end": 30.0, "label": "verse", "confidence": 0.9},
+        {"start": 30.0, "end": 40.0, "label": "verse", "confidence": 0.4},
+    ]
+
+    merged = merge_consecutive(segments)
+
+    assert len(merged) == 1
+    # 30s at 0.9 and 10s at 0.4 -> 0.775
+    assert merged[0]["confidence"] == pytest.approx(0.775)
+
+
+def test_to_sections_carries_confidence():
+    sections = to_sections(
+        [{"start": 0.0, "end": 10.0, "label": "chorus", "confidence": 0.8123}]
+    )
+
+    assert sections[0]["confidence"] == 0.812
+
+
+# --- downbeat snapping -------------------------------------------------------
+
+
+def test_snap_boundaries_moves_to_nearby_downbeat():
+    sections = [
+        {"name": "Intro", "start": 0.0, "end": 15.9},
+        {"name": "Verse", "start": 15.9, "end": 32.1},
+    ]
+    downbeats = [0.0, 16.0, 32.0, 48.0]
+
+    snapped = snap_boundaries(sections, downbeats)
+
+    assert snapped[0]["end"] == 16.0
+    assert snapped[1]["start"] == 16.0
+    assert snapped[1]["end"] == 32.0
+
+
+def test_snap_boundaries_ignores_distant_downbeats():
+    sections = [
+        {"name": "Intro", "start": 0.0, "end": 20.0},
+        {"name": "Verse", "start": 20.0, "end": 40.0},
+    ]
+    downbeats = [0.0, 16.0, 32.0]
+
+    snapped = snap_boundaries(sections, downbeats)
+
+    assert snapped[0]["end"] == 20.0
+
+
+def test_snap_boundaries_never_inverts_order():
+    sections = [
+        {"name": "A", "start": 0.0, "end": 10.1},
+        {"name": "B", "start": 10.1, "end": 10.4},
+        {"name": "C", "start": 10.4, "end": 20.0},
+    ]
+    downbeats = [0.0, 10.2, 20.0]
+
+    snapped = snap_boundaries(sections, downbeats)
+
+    starts = [section["start"] for section in snapped]
+    assert starts == sorted(starts)
+    assert all(
+        section["end"] > section["start"] for section in snapped
+    ), "sections must stay positive-length"
+
+
+def test_snap_boundaries_without_grid_is_a_noop():
+    sections = [{"name": "A", "start": 0.0, "end": 12.3}]
+
+    assert snap_boundaries(sections, []) == sections
+
+
+def test_beats_unavailable_returns_none(monkeypatch):
+    from analysis.beats import detect_beats
+
+    monkeypatch.setattr("analysis.beats.beats_available", lambda: False)
+
+    assert detect_beats("whatever.mp3") == (None, None)

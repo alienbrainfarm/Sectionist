@@ -26,3 +26,6 @@ htmlcov/
 
 # Local test media (not distributed)
 media/
+
+# Local model caches
+.torch-cache/
