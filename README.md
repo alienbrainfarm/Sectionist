@@ -21,7 +21,7 @@ optional download. The app detects which is available and picks the better one.
 - 🎯 **Section confidence** — the model reports how sure it is, per section
 - 📏 **Bar-aligned boundaries** — sections snap to detected downbeats
 - 🎹 **Key and tempo detection**, including key changes
-- 🎸 **Chord detection** — beat-synchronous, with musical continuity
+- 🎸 **Chord detection** — beat-synchronous, with musical continuity, drawn on the timeline
 - 📊 **Interactive timeline** — click, drag, split, join, rename sections
 - 🎧 **Playback with seeking**, driven by VLC
 - 💾 **Save and reload** a song folder (audio copy plus `analysis.json`)
@@ -324,6 +324,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 - [x] Beat and downbeat detection
 - [x] Downbeat-aligned section boundaries
 - [x] Learning from user corrections
+- [x] Chord track on the timeline
 - [ ] Bar lines drawn in the timeline
 - [ ] Chord mapping UI
 - [ ] Key change visualisation

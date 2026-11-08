@@ -15,6 +15,36 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QAction
 class TimelineWidget(QWidget):
     """Timeline visualization widget."""
 
+    CHORD_LANE_HEIGHT = 30
+    PITCH_CLASSES = (
+        "C",
+        "C#",
+        "D",
+        "D#",
+        "E",
+        "F",
+        "F#",
+        "G",
+        "G#",
+        "A",
+        "A#",
+        "B",
+    )
+    CHORD_PALETTE = (
+        "#4E79A7",
+        "#F28E2B",
+        "#E15759",
+        "#76B7B2",
+        "#59A14F",
+        "#EDC948",
+        "#B07AA1",
+        "#FF9DA7",
+        "#9C755F",
+        "#BAB0AC",
+        "#86BCB6",
+        "#D37295",
+    )
+
     section_clicked = pyqtSignal(float)  # Emit timestamp when section is clicked
     section_renamed = pyqtSignal(int, str)  # Emit section index and new name
     section_resized = pyqtSignal(
@@ -29,9 +59,10 @@ class TimelineWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.sections = []
+        self.chords = []
         self.duration = 0
         self.current_position = 0
-        self.setMinimumHeight(100)
+        self.setMinimumHeight(130)
         self.setStyleSheet("""
             TimelineWidget {
                 background-color: #f0f0f0;
@@ -85,6 +116,30 @@ class TimelineWidget(QWidget):
         self.sections = sections
         self.update()
 
+    def set_chords(self, chords: List[Dict]):
+        """Set the chord track drawn under the sections."""
+        self.chords = chords or []
+        self.update()
+
+    def _chord_color(self, name):
+        """Colour a chord by its root, darker for minor."""
+        text = str(name).strip()
+        minor = False
+        if text.endswith("m7"):
+            text, minor = text[:-2], True
+        elif text.endswith("maj7"):
+            text = text[:-4]
+        elif text.endswith("7"):
+            text = text[:-1]
+        elif text.endswith("m"):
+            text, minor = text[:-1], True
+
+        try:
+            color = QColor(self.CHORD_PALETTE[self.PITCH_CLASSES.index(text)])
+        except ValueError:
+            return QColor(138, 138, 138)
+        return color.darker(125) if minor else color
+
     def set_duration(self, duration: float):
         """Set the total duration."""
         self.duration = duration
@@ -103,6 +158,11 @@ class TimelineWidget(QWidget):
         # Background
         painter.fillRect(rect, QColor(240, 240, 240))
 
+        chord_lane = (
+            rect.height() - self.CHORD_LANE_HEIGHT if self.chords else rect.height()
+        )
+        section_bottom = chord_lane - (6 if self.chords else 0)
+
         if self.duration > 0 and self.sections:
             # Draw sections
             for i, section in enumerate(self.sections):
@@ -117,12 +177,12 @@ class TimelineWidget(QWidget):
                 # Get consistent color based on section type
                 color_hex = self.get_section_color(name)
                 color = QColor(color_hex)
-                painter.fillRect(x, 20, width, rect.height() - 20, color)
+                painter.fillRect(x, 20, width, section_bottom - 20, color)
 
                 # Draw clear section boundaries with strong borders
                 border_pen = QPen(QColor(0, 0, 0), 2)  # Black border, 2px thick
                 painter.setPen(border_pen)
-                painter.drawRect(x, 20, width, rect.height() - 20)
+                painter.drawRect(x, 20, width, section_bottom - 20)
 
                 # Draw section separators between sections (more visible)
                 if i < len(self.sections) - 1:  # Not the last section
@@ -130,7 +190,7 @@ class TimelineWidget(QWidget):
                     # Draw a thicker separator line
                     separator_pen = QPen(QColor(0, 0, 0), 3)  # Thick black line
                     painter.setPen(separator_pen)
-                    painter.drawLine(separator_x, 20, separator_x, rect.height())
+                    painter.drawLine(separator_x, 20, separator_x, section_bottom)
 
                 # Draw section label with number
                 painter.setPen(QPen(QColor(0, 0, 0)))
@@ -159,6 +219,43 @@ class TimelineWidget(QWidget):
                 seconds = int(t % 60)
                 time_text = f"{minutes}:{seconds:02d}"
                 painter.drawText(x + 2, 12, time_text)
+
+        # Draw the chord track beneath the sections
+        if self.duration > 0 and self.chords:
+            lane_top = rect.height() - self.CHORD_LANE_HEIGHT
+            painter.fillRect(
+                0, lane_top, rect.width(), self.CHORD_LANE_HEIGHT, QColor(38, 38, 38)
+            )
+            painter.setPen(QPen(QColor(120, 120, 120), 1))
+            painter.drawLine(0, lane_top, rect.width(), lane_top)
+            painter.setFont(QFont("Arial", 9))
+
+            for chord in self.chords:
+                start = float(chord.get("start", 0))
+                end = float(chord.get("end", 0))
+                name = chord.get("name", "")
+                if end <= start:
+                    continue
+                x1 = int((start / self.duration) * rect.width())
+                x2 = int((end / self.duration) * rect.width())
+                width = max(1, x2 - x1)
+                block = (x1, lane_top + 3, width, self.CHORD_LANE_HEIGHT - 6)
+
+                painter.fillRect(
+                    block[0], block[1], block[2], block[3], self._chord_color(name)
+                )
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.drawRect(block[0], block[1], block[2], block[3])
+                if width >= 22:
+                    painter.setPen(QPen(QColor(0, 0, 0)))
+                    painter.drawText(
+                        block[0],
+                        block[1],
+                        block[2],
+                        block[3],
+                        Qt.AlignmentFlag.AlignCenter,
+                        name,
+                    )
 
         # Draw current position indicator
         if self.duration > 0:
