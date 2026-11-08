@@ -32,8 +32,8 @@ FALLBACK_COLOR = QColor(138, 138, 138)
 
 
 def chord_color(name):
-    """Colour a chord by its root, darker for minor."""
-    text = str(name).strip()
+    """Colour a chord by its root, darker for minor. "C/E" colours as C."""
+    text = str(name).strip().split("/")[0]
     minor = False
     if text.endswith("m7"):
         text, minor = text[:-2], True

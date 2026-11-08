@@ -58,8 +58,12 @@ pip install -r requirements-songformer.txt
 pip install -r requirements-lyrics.txt
 ```
 
-Optionally `requirements-stems.txt` if you want Demucs vocal separation (off by
-default, and expensive — see the README).
+Then `requirements-stems.txt` (Demucs). Analysis reads chords and lyrics from
+stems by default, and the stem splitter needs it too. Separating stems takes a
+few seconds on a GPU against a couple of minutes on a laptop CPU, so it is a
+good reason to run the backend here. The stems come back to the laptop as
+FLAC, a few tens of megabytes for a four-minute song, and are kept there
+afterwards.
 
 Then download the segmentation model:
 

@@ -38,6 +38,11 @@ def chord_name(root, quality):
     return f"{PITCH_CLASSES[root]}7"
 
 
+def template_specs(qualities=("maj", "min", "7")):
+    """``(root, intervals)`` for each template, in build_templates order."""
+    return [(root, QUALITIES[q]) for q in qualities for root in range(12)]
+
+
 def build_templates(qualities=("maj", "min", "7")):
     """Return ``(names, matrix)`` with one unit-length template per chord."""
     names = []
@@ -59,6 +64,26 @@ def observation_vector(chroma_slice):
     if norm < 1e-6:
         return None
     return mean / norm
+
+
+def with_edges(times, duration):
+    """Beat times with the start and end of the song added if missing."""
+    times = np.asarray(times, dtype=float)
+    if len(times) == 0 or times[0] > 0:
+        times = np.concatenate([[0.0], times])
+    if times[-1] < duration:
+        times = np.concatenate([times, [duration]])
+    return times
+
+
+def beat_observations(chroma, times, sr, hop_length):
+    """One normalised chroma vector (or None) per span between beat times."""
+    observations = []
+    for start, end in zip(times[:-1], times[1:]):
+        first = int(round(start * sr / hop_length))
+        last = max(first + 1, int(round(end * sr / hop_length)))
+        observations.append(observation_vector(chroma[:, first:last]))
+    return observations
 
 
 def _frame_similarities(observations, templates):
@@ -183,17 +208,8 @@ def detect_chords(y, sr, hop_length=2048, beats=None, qualities=("maj", "min")):
     else:
         times = np.asarray(beats, dtype=float)
 
-    duration = float(librosa.get_duration(y=y, sr=sr))
-    if len(times) == 0 or times[0] > 0:
-        times = np.concatenate([[0.0], times])
-    if times[-1] < duration:
-        times = np.concatenate([times, [duration]])
-
-    observations = []
-    for start, end in zip(times[:-1], times[1:]):
-        first = int(round(start * sr / hop_length))
-        last = max(first + 1, int(round(end * sr / hop_length)))
-        observations.append(observation_vector(chroma[:, first:last]))
+    times = with_edges(times, float(librosa.get_duration(y=y, sr=sr)))
+    observations = beat_observations(chroma, times, sr, hop_length)
 
     if not observations:
         return []

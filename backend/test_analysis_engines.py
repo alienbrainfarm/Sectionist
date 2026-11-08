@@ -424,22 +424,22 @@ def test_add_lyrics_is_a_noop_without_the_optional_package(monkeypatch):
 # --- vocal separation --------------------------------------------------------
 
 
-def test_stems_disabled_by_default(monkeypatch):
+def test_stems_enabled_by_default(monkeypatch):
     from analysis import stems
 
     monkeypatch.delenv("SECTIONIST_STEMS", raising=False)
     monkeypatch.setattr(stems, "stems_available", lambda: True)
 
-    assert stems.enabled() is False
+    assert stems.enabled() is True
 
 
-def test_stems_enabled_by_environment(monkeypatch):
+def test_stems_can_be_switched_off(monkeypatch):
     from analysis import stems
 
-    monkeypatch.setenv("SECTIONIST_STEMS", "1")
     monkeypatch.setattr(stems, "stems_available", lambda: True)
-
-    assert stems.enabled() is True
+    for setting in ("off", "0", "false"):
+        monkeypatch.setenv("SECTIONIST_STEMS", setting)
+        assert stems.enabled() is False
 
 
 def test_stems_need_the_package_even_when_switched_on(monkeypatch):
@@ -454,7 +454,7 @@ def test_stems_need_the_package_even_when_switched_on(monkeypatch):
 def test_vocals_path_is_none_when_disabled(monkeypatch):
     from analysis import stems
 
-    monkeypatch.delenv("SECTIONIST_STEMS", raising=False)
+    monkeypatch.setenv("SECTIONIST_STEMS", "off")
 
     assert stems.vocals_path("song.mp3") is None
 

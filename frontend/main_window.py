@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict
 
 from PyQt6.QtWidgets import (
+    QHBoxLayout,
     QMainWindow,
     QVBoxLayout,
     QWidget,
@@ -33,6 +34,8 @@ try:
     from .timeline_widget import TimelineWidget
     from .lyrics_view import create_lyrics_dock, format_lyrics
     from .results_text import format_details
+    from .stem_lanes import StemLanes, TimelineGutter
+    from .stems_controller import StemsController
     from .panels import (
         EmptyState,
         HeaderBar,
@@ -49,6 +52,8 @@ except ImportError:
     from timeline_widget import TimelineWidget
     from lyrics_view import create_lyrics_dock, format_lyrics
     from results_text import format_details
+    from stem_lanes import StemLanes, TimelineGutter
+    from stems_controller import StemsController
     from panels import (
         EmptyState,
         HeaderBar,
@@ -110,6 +115,7 @@ class SectionistMainWindow(QMainWindow):
 
         self.build_status_bar()
         self.create_menu_bar()
+        self.stems = StemsController(self)
 
         # Lyrics live in a dock so they can be hidden or floated without
         # disturbing the section and chord layout.
@@ -134,7 +140,16 @@ class SectionistMainWindow(QMainWindow):
         self.timeline.section_split.connect(self.split_section)
         self.timeline.chord_renamed.connect(self.rename_chord)
         self.timeline.chord_boundary_moved.connect(self.move_chord_boundary)
-        timeline_layout.addWidget(self.timeline, 1)
+        # While stems are shown, the timeline gets a gutter matching the
+        # stem lanes' controls so every lane shares one time axis.
+        timeline_row = QHBoxLayout()
+        timeline_row.setSpacing(0)  # the stem rows have none either
+        self.timeline_gutter = TimelineGutter(self.timeline)
+        timeline_row.addWidget(self.timeline_gutter)
+        timeline_row.addWidget(self.timeline, 1)
+        timeline_layout.addLayout(timeline_row, 1)
+        self.stem_lanes = StemLanes()
+        timeline_layout.addWidget(self.stem_lanes)
 
         self.transport = TransportBar()
         self.play_button = self.transport.play_button
@@ -230,7 +245,7 @@ class SectionistMainWindow(QMainWindow):
             playback_menu, "Stop", self.stop_playback, "Ctrl+.", False
         )
 
-        analysis_menu = menubar.addMenu("&Analysis")
+        self.analysis_menu = analysis_menu = menubar.addMenu("&Analysis")
         self.analyze_action = action(
             analysis_menu, "&Analyze Audio", self.analyze_audio, "Ctrl+R", False
         )
@@ -322,6 +337,7 @@ class SectionistMainWindow(QMainWindow):
         # A new file must not show the previous song's analysis.
         self.analysis_results = None
         self.display_results({"success": True, "analysis": {}})
+        self.stems.song_changed(file_path)
 
         # Load into audio player
         if self.audio_player.load_file(file_path):
@@ -342,6 +358,7 @@ class SectionistMainWindow(QMainWindow):
 
         # Stop playback
         self.stop_playback()
+        self.stems.song_changed(None)
 
         # Reset UI
         self.setWindowTitle("Sectionist")
@@ -442,6 +459,7 @@ class SectionistMainWindow(QMainWindow):
         self.timeline.set_sections(sections)
         self.timeline.set_chords(chords)
         self.timeline.set_downbeats(downbeats)
+        self.stem_lanes.set_sections(sections)
 
         if self.current_file and analysis:
             self.header.set_song(
@@ -690,6 +708,7 @@ class SectionistMainWindow(QMainWindow):
 
         try:
             self.audio_player.stop()
+            self.stems.shutdown()
         except Exception:
             pass
 

@@ -12,6 +12,7 @@ section boundaries.
 from .base import Analyzer
 from .beats import beats_available, detect_beats
 from .lyrics import lyrics_available, transcribe
+from .stem_chords import chords_for_file
 
 
 class LibrosaAnalyzer(Analyzer):
@@ -30,8 +31,40 @@ class LibrosaAnalyzer(Analyzer):
 
         result = analyze_audio_file(file_path, include_sections=include_sections)
         result.setdefault("engine", self.name)
-        self.add_beats(file_path, result)
+        beats, downbeats = self.beat_grid(file_path)
+        self.add_beats(file_path, result, beats, downbeats)
+        self.add_stem_chords(file_path, result, beats, downbeats)
         self.add_lyrics(file_path, result)
+        return result
+
+    @staticmethod
+    def beat_grid(file_path):
+        """Beat This! beats and downbeats, or two empty lists."""
+        if not beats_available():
+            return [], []
+        try:
+            beats, downbeats = detect_beats(file_path)
+        except Exception as exc:  # pragma: no cover - optional model
+            print(f"Beat tracking unavailable: {exc}")
+            return [], []
+        return beats or [], downbeats or []
+
+    @staticmethod
+    def add_stem_chords(file_path, result, beats=None, downbeats=None):
+        """Replace the mix chords with stem-based ones when stems are used.
+
+        ``chord_source`` records which it was, so the UI can say so.
+        """
+        result["chord_source"] = "mix"
+        try:
+            chords = chords_for_file(file_path, beats, downbeats)
+        except Exception as exc:  # stems are an improvement, never a failure
+            print(f"Stem chords unavailable, using the mix: {exc}")
+            return result
+        if chords:
+            duration = result.get("duration") or float("inf")
+            result["chords"] = [c for c in chords if c["end"] <= duration + 0.05]
+            result["chord_source"] = "stems"
         return result
 
     @staticmethod

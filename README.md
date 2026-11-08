@@ -21,11 +21,17 @@ optional download. The app detects which is available and picks the better one.
 - 🎯 **Section confidence** — the model reports how sure it is, per section
 - 📏 **Bar-aligned boundaries** — sections snap to detected downbeats, and bars are drawn in the timeline
 - 🎹 **Key and tempo detection**, including key changes
-- 🎸 **Chord detection** — beat-synchronous, with musical continuity, drawn on the timeline
+- 🎸 **Chord detection** — read from the accompaniment and bass stems, with the
+  bass note anchoring each chord's root and naming inversions (`C/E`); drawn on
+  the timeline
 - 📊 **Interactive timeline** — click, drag, split, join, rename sections; retype or re-boundary chords
 - 🎧 **Playback with seeking**, driven by VLC
 - 💾 **Save and reload** a song folder (audio copy plus `analysis.json`)
-- 🎤 **Lyrics** — transcribed locally and shown beside the timeline
+- 🎤 **Lyrics** — transcribed locally from the vocal stem and shown beside the
+  timeline
+- 🎚️ **Stem splitter** — separate vocals, drums, bass and the rest (or six stems
+  with guitar and piano), see each as a waveform under the timeline, and mute or
+  solo them while you play
 - 🧠 **Learns from your corrections** — train a small label model on songs you fix
 - 🖥️ **Windows, macOS and Linux**
 
@@ -66,8 +72,9 @@ cd backend
 ./start_server.sh
 ```
 
-This creates a virtual environment, installs dependencies and serves
-`http://127.0.0.1:8765`. On this path you get the heuristic engine.
+This creates a virtual environment, installs dependencies (including Demucs
+for stems, which brings PyTorch) and serves `http://127.0.0.1:8765`. On this
+path you get the heuristic engine.
 
 ### 2. Frontend
 
@@ -161,6 +168,48 @@ versus ~97 s on CPU. On a CUDA GPU the whole file runs in one pass in a few
 seconds. Set `SECTIONIST_DEVICE=cpu` to override. Details in
 [docs/MODEL_RESEARCH.md](docs/MODEL_RESEARCH.md).
 
+## Splitting stems
+
+**Split stems** in the header separates the song with
+[Demucs](https://github.com/adefossez/demucs) and shows one waveform per stem
+under the timeline. **M** mutes a stem, **S** solos it and Shift-clicking **M**
+solos that stem alone; clicking a waveform seeks. **Original mix** goes back to
+the file itself.
+
+### Stems in the analysis
+
+Stems are on by default whenever Demucs is installed (`start_server.sh` and
+`setup.sh` install it; otherwise `pip install -r requirements-stems.txt`):
+
+- **Chords** are read from the accompaniment ("other", plus guitar and piano
+  with the six-stem model) with drums and vocals removed, and the bass note on
+  each beat, weighted towards the downbeat, anchors the chord's root. That is
+  what separates relative chords such as C and Am, which share two notes. When
+  the bass sits on another chord tone the chord is named as an inversion, e.g.
+  `C/E`. On six synthetic songs with known chords this raised accuracy from 69%
+  to 87% (97% with perfect stems, so separation quality is the limit).
+- **Lyrics** are transcribed from the vocal stem.
+
+Separation takes a few seconds on a GPU and roughly half the song's length on
+a CPU. Analysis and the stem splitter share one cache, so whichever runs first
+pays for it. `SECTIONIST_STEMS=off` analyses from the full mix instead.
+
+### Models
+
+| Model | Stems | Speed |
+|---|---|---|
+| `htdemucs` (default) | vocals, drums, bass, other | ~2.3x realtime on CPU, a few seconds on a GPU |
+| `htdemucs_ft` | the same four, cleaner | about 4x slower |
+| `htdemucs_6s` | adds guitar and piano | as `htdemucs`; the piano stem is weak |
+
+Model weights download on first use. Stems are cached on both sides: the
+backend keeps them by the song's contents, and the frontend keeps a copy in its
+data folder, so reopening a song shows its stems straight away without asking
+the backend. Stems play through a small mixer of their own rather than VLC, so
+muting is instant and the stems never drift apart; it uses numpy, soundfile
+and sounddevice from `frontend/requirements.txt`, and on Linux needs PortAudio
+(`sudo apt install libportaudio2`).
+
 ## Learning from your corrections
 
 Sections you fix in the app and save are training data. A small label model can
@@ -210,7 +259,9 @@ Sectionist/
 │   │   ├── sections.py            # merging, naming, downbeat snapping
 │   │   ├── calibration.py         # correction model
 │   │   ├── lyrics.py              # Whisper transcription
-│   │   ├── stems.py               # optional Demucs vocal separation
+│   │   ├── stems.py               # Demucs stem separation and its cache
+│   │   ├── stem_jobs.py           # background jobs behind /stems
+│   │   ├── stem_chords.py         # chords from stems, anchored on the bass
 │   │   ├── chunking.py            # overlapping windows for MPS
 │   │   ├── chords.py              # beat-synchronous chord recognition
 │   │   └── device.py              # device selection
@@ -232,6 +283,10 @@ Sectionist/
 │   ├── analysis_worker.py         # background HTTP worker
 │   ├── chord_track.py             # chord lane painting and geometry
 │   ├── lyrics_view.py             # lyrics panel and stanza formatting
+│   ├── stems_client.py            # fetches and caches stems from the backend
+│   ├── stem_player.py             # live mixer for muting and soloing stems
+│   ├── stem_lanes.py              # stem waveforms with mute and solo
+│   ├── stems_controller.py        # wires the stems into the window
 │   ├── conftest.py                # pytest fixtures (offscreen Qt)
 │   ├── test_*.py
 │   ├── requirements.txt

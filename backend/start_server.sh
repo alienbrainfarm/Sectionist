@@ -39,6 +39,9 @@ source "$BACKEND_DIR/venv/bin/activate"
 # Install/update dependencies
 echo "🔧 Installing Python dependencies..."
 pip install -r "$BACKEND_DIR/requirements.txt" > /dev/null
+# Stems (Demucs) improve chords and lyrics; analysis uses the mix without them.
+echo "🔧 Installing stem separation (Demucs, with PyTorch)..."
+pip install -r "$BACKEND_DIR/requirements-stems.txt" > /dev/null ||     echo "⚠️  Demucs did not install; analysis will use the full mix"
 
 # Check if librosa is working
 echo "🔧 Checking librosa installation..."
