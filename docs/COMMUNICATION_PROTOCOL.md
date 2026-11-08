@@ -32,7 +32,14 @@ The Sectionist application uses a local HTTP server architecture for communicati
 {
   "status": "healthy",
   "version": "1.0.0",
-  "backend": "python-librosa"
+  "backend": "python-librosa",
+  "engine": "songformer",
+  "engines": {
+    "configured": "auto",
+    "active": "songformer",
+    "available": ["librosa", "songformer"],
+    "device": "cuda"
+  }
 }
 ```
 

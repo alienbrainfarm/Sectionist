@@ -219,3 +219,33 @@ def test_allowed_file():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_engine_status_describes_the_analyzer_in_use(monkeypatch):
+    """Health must not describe a different engine from the one analysing."""
+    import server
+
+    class FakeAnalyzer:
+        name = "fake-engine"
+        device = "cuda"
+
+    monkeypatch.setattr(server, "_analyzer", FakeAnalyzer())
+
+    status = server.engine_status()
+
+    assert status["active"] == "fake-engine"
+    assert status["device"] == "cuda"
+
+
+def test_health_reports_the_cached_engine(client, monkeypatch):
+    import server
+
+    class FakeAnalyzer:
+        name = "fake-engine"
+
+    monkeypatch.setattr(server, "_analyzer", FakeAnalyzer())
+
+    data = client.get("/health").get_json()
+
+    assert data["engine"] == "fake-engine"
+    assert data["engines"]["active"] == "fake-engine"
