@@ -447,152 +447,27 @@ def detect_key_changes_in_segments(
     return key_changes
 
 
-def detect_chords(y, sr, hop_length=2048):
+def detect_chords(y, sr, hop_length=2048, beats=None):
     """
-    Detect basic chord progressions throughout an audio file.
+    Detect a chord progression over time.
 
-    This function uses chroma features to identify major and minor chords
-    by comparing the harmonic content to known chord templates.
+    Delegates to :mod:`analysis.chords`, which uses beat-synchronous chroma,
+    chord-template matching and Viterbi decoding with continuity. The previous
+    implementation named independent fixed-length blocks, which produced a new
+    chord every couple of seconds whether or not the music changed.
 
     Args:
         y (np.array): Audio time series
         sr (int): Sample rate
         hop_length (int): Hop length for feature extraction
+        beats (np.array): Optional beat times in seconds
 
     Returns:
-        list: List of chord progressions with timestamps
-            Each chord contains:
-            - name: Chord name (e.g., "C major", "Am", "F")
-            - start: Start time in seconds
-            - end: End time in seconds
-            - confidence: Detection confidence (0-1)
+        list: Chord spans with ``name``, ``start``, ``end`` and ``confidence``
     """
-    # Extract chroma features
-    chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
+    from analysis.chords import detect_chords as _detect_chords
 
-    # Define chord templates for major and minor chords
-    # Each template is a 12-element vector representing chroma bins
-    # (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
-    chord_templates = {
-        # Major chords
-        "C": np.array([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0]),
-        "C#": np.array([0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0]),
-        "D": np.array([0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0]),
-        "D#": np.array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]),
-        "E": np.array([0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1]),
-        "F": np.array([1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0]),
-        "F#": np.array([0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0]),
-        "G": np.array([0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1]),
-        "G#": np.array([1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0]),
-        "A": np.array([0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]),
-        "A#": np.array([0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
-        "B": np.array([0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1]),
-        # Minor chords
-        "Cm": np.array([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0]),
-        "C#m": np.array([0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]),
-        "Dm": np.array([0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0]),
-        "D#m": np.array([0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0]),
-        "Em": np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1]),
-        "Fm": np.array([1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0]),
-        "F#m": np.array([0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0]),
-        "Gm": np.array([0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0]),
-        "G#m": np.array([0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1]),
-        "Am": np.array([1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]),
-        "A#m": np.array([0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
-        "Bm": np.array([0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
-    }
-
-    # Calculate time frames
-    frame_times = librosa.frames_to_time(
-        np.arange(chroma.shape[1]), sr=sr, hop_length=hop_length
-    )
-
-    # Analyze chords in segments (every 2 seconds)
-    segment_duration = 2.0  # seconds
-    frames_per_segment = int(segment_duration * sr / hop_length)
-
-    detected_chords = []
-
-    for start_frame in range(
-        0, chroma.shape[1] - frames_per_segment, frames_per_segment
-    ):
-        end_frame = min(start_frame + frames_per_segment, chroma.shape[1])
-        segment_chroma = chroma[:, start_frame:end_frame]
-
-        # Calculate mean chroma for this segment
-        mean_chroma = np.mean(segment_chroma, axis=1)
-
-        # Normalize chroma vector
-        if np.sum(mean_chroma) > 0:
-            mean_chroma = mean_chroma / np.sum(mean_chroma)
-
-        # Find best matching chord
-        best_chord = "N"  # No chord detected
-        best_score = 0
-
-        for chord_name, template in chord_templates.items():
-            # Calculate cosine similarity between mean_chroma and template
-            # Normalize vectors
-            chroma_norm = np.linalg.norm(mean_chroma)
-            template_norm_val = np.linalg.norm(template)
-
-            if chroma_norm > 0 and template_norm_val > 0:
-                # Cosine similarity
-                score = np.dot(mean_chroma, template) / (
-                    chroma_norm * template_norm_val
-                )
-            else:
-                score = 0
-
-            if score > best_score:
-                best_score = score
-                best_chord = chord_name
-
-        # Only include chord if confidence is above threshold
-        confidence_threshold = 0.3  # Lowered from 0.5 for better detection
-        if best_score > confidence_threshold:
-            start_time = (
-                frame_times[start_frame]
-                if start_frame < len(frame_times)
-                else frame_times[-1]
-            )
-            end_time = (
-                frame_times[end_frame - 1]
-                if end_frame - 1 < len(frame_times)
-                else frame_times[-1]
-            )
-
-            detected_chords.append(
-                {
-                    "name": best_chord,
-                    "start": round(float(start_time), 2),
-                    "end": round(float(end_time), 2),
-                    "confidence": round(float(best_score), 2),
-                }
-            )
-
-    # Post-process to merge consecutive identical chords
-    if detected_chords:
-        merged_chords = [detected_chords[0]]
-
-        for chord in detected_chords[1:]:
-            last_chord = merged_chords[-1]
-            # If same chord and consecutive time segments, merge them
-            if (
-                chord["name"] == last_chord["name"]
-                and abs(chord["start"] - last_chord["end"]) < 0.5
-            ):  # Allow small gap
-                merged_chords[-1]["end"] = chord["end"]
-                # Update confidence to average
-                merged_chords[-1]["confidence"] = round(
-                    (last_chord["confidence"] + chord["confidence"]) / 2, 2
-                )
-            else:
-                merged_chords.append(chord)
-
-        return merged_chords
-
-    return []
+    return _detect_chords(y, sr, hop_length=hop_length, beats=beats)
 
 
 def analyze_audio_file(file_path):
@@ -660,7 +535,12 @@ def analyze_audio_file(file_path):
     sections = analyze_song_structure(y, sr)
 
     # Chord detection and mapping with consistent hop_length
-    chords = detect_chords(y, sr, hop_length)
+    beat_times = (
+        librosa.frames_to_time(beats, sr=sr, hop_length=hop_length)
+        if len(beats)
+        else None
+    )
+    chords = detect_chords(y, sr, hop_length, beats=beat_times)
 
     # Safeguard: Filter out any chords beyond the actual audio duration
     chords = [

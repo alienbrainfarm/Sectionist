@@ -21,7 +21,7 @@ optional download. The app detects which is available and picks the better one.
 - 🎯 **Section confidence** — the model reports how sure it is, per section
 - 📏 **Bar-aligned boundaries** — sections snap to detected downbeats
 - 🎹 **Key and tempo detection**, including key changes
-- 🎸 **Chord detection** over time (backend)
+- 🎸 **Chord detection** — beat-synchronous, with musical continuity
 - 📊 **Interactive timeline** — click, drag, split, join, rename sections
 - 🎧 **Playback with seeking**, driven by VLC
 - 💾 **Save and reload** a song folder (audio copy plus `analysis.json`)
