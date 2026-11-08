@@ -191,11 +191,96 @@ def test_chord_track_renders_without_error(qapp):
     assert not pixmap.isNull()
 
 
-def test_chord_colours_distinguish_quality(qapp):
-    from timeline_widget import TimelineWidget
+def test_chord_colours_distinguish_quality():
+    from chord_track import chord_color
 
-    widget = TimelineWidget()
-
-    assert widget._chord_color("C").name() != widget._chord_color("Cm").name()
+    assert chord_color("C").name() != chord_color("Cm").name()
+    assert chord_color("Am").name() != chord_color("A").name()
     # Unknown labels fall back to grey rather than raising.
-    assert widget._chord_color("??").name() == "#8a8a8a"
+    assert chord_color("??").name() == "#8a8a8a"
+
+
+def test_chord_geometry_hit_testing():
+    from chord_track import chord_at_position, chord_boundary_at
+
+    chords = [
+        {"name": "D", "start": 0.0, "end": 20.0},
+        {"name": "Em", "start": 20.0, "end": 40.0},
+    ]
+
+    # 800 px over 40 s -> 20 px per second
+    assert chord_at_position(chords, 40, 800, 100) == 0
+    assert chord_at_position(chords, 40, 800, 500) == 1
+    assert chord_boundary_at(chords, 40, 800, 400) == 0
+    assert chord_boundary_at(chords, 40, 800, 300) == -1
+
+
+def test_renaming_a_chord_updates_results(qapp):
+    from main_window import SectionistMainWindow
+
+    payload = {
+        "success": True,
+        "analysis": {
+            "duration": 40.0,
+            "tempo": 100.0,
+            "key": "D major",
+            "key_changes": [],
+            "sections": [{"name": "Verse", "start": 0.0, "end": 40.0}],
+            "beats_detected": 50,
+            "chords": [
+                {"name": "D", "start": 0.0, "end": 20.0},
+                {"name": "Em", "start": 20.0, "end": 40.0},
+            ],
+        },
+    }
+
+    window = SectionistMainWindow()
+    try:
+        window.analysis_results = payload
+        window.display_results(payload)
+
+        window.rename_chord(0, "Dm")
+
+        assert payload["analysis"]["chords"][0]["name"] == "Dm"
+        assert window.timeline.chords[0]["name"] == "Dm"
+        assert "Dm" in window.details_text.toPlainText()
+    finally:
+        window.close()
+
+
+def test_dragging_a_chord_boundary_keeps_chords_contiguous(qapp):
+    from main_window import SectionistMainWindow
+
+    payload = {
+        "success": True,
+        "analysis": {
+            "duration": 40.0,
+            "tempo": 100.0,
+            "key": "D major",
+            "key_changes": [],
+            "sections": [],
+            "beats_detected": 50,
+            "chords": [
+                {"name": "D", "start": 0.0, "end": 20.0},
+                {"name": "Em", "start": 20.0, "end": 40.0},
+            ],
+        },
+    }
+
+    window = SectionistMainWindow()
+    try:
+        window.analysis_results = payload
+        window.display_results(payload)
+
+        window.move_chord_boundary(0, 26.5)
+
+        chords = payload["analysis"]["chords"]
+        assert chords[0]["end"] == 26.5
+        assert chords[1]["start"] == 26.5
+
+        # A drag past the neighbour is clamped, never inverted.
+        window.move_chord_boundary(0, 999.0)
+        assert chords[0]["end"] < chords[1]["end"]
+        assert chords[0]["end"] == chords[1]["start"]
+    finally:
+        window.close()
