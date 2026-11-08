@@ -11,7 +11,8 @@ import os
 import requests
 from PyQt6.QtCore import QThread, pyqtSignal
 
-DEFAULT_BACKEND_URL = "http://127.0.0.1:5000"
+# Keep in sync with the backend's SECTIONIST_PORT default (backend/server.py).
+DEFAULT_BACKEND_URL = "http://127.0.0.1:8765"
 
 # Analysis is synchronous on the backend: a 10 minute song can take a couple of
 # minutes to process. This needs generous headroom so long files do not fail
@@ -74,7 +75,7 @@ class AnalysisWorker(QThread):
             self.error.emit("Analysis request timed out")
         except requests.exceptions.ConnectionError:
             self.error.emit(
-                "Cannot connect to backend server. Make sure it's running on port 5000."
+                "Cannot connect to backend server. Make sure it's running on port 8765."
             )
         except Exception as e:
             self.error.emit(f"Analysis error: {str(e)}")

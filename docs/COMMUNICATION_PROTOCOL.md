@@ -14,8 +14,8 @@ The Sectionist application uses a local HTTP server architecture for communicati
 ## Server Configuration
 
 - **Host**: `127.0.0.1` (localhost)
-- **Port**: `5000`
-- **Base URL**: `http://127.0.0.1:5000`
+- **Port**: `8765`
+- **Base URL**: `http://127.0.0.1:8765`
 
 ## API Endpoints
 
@@ -86,7 +86,7 @@ The Sectionist application uses a local HTTP server architecture for communicati
 
 **Example Request**:
 ```bash
-curl -X POST -F 'audio=@/path/to/song.mp3' http://127.0.0.1:5000/analyze
+curl -X POST -F 'audio=@/path/to/song.mp3' http://127.0.0.1:8765/analyze
 ```
 
 **Successful Response**:

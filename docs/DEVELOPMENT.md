@@ -201,7 +201,7 @@ def analyze_audio(file_path: str) -> dict:
     """Upload an audio file to the local backend and return the analysis."""
     with open(file_path, "rb") as audio:
         response = requests.post(
-            "http://127.0.0.1:5000/analyze",
+            "http://127.0.0.1:8765/analyze",
             files={"audio": audio},
         )
     response.raise_for_status()

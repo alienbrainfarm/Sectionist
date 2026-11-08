@@ -190,7 +190,10 @@ def main():
         sys.exit(1)
 
     host = os.environ.get("SECTIONIST_HOST", "127.0.0.1")
-    port = int(os.environ.get("SECTIONIST_PORT", "5000"))
+    # Keep the default port in sync with DEFAULT_BACKEND_URL in
+    # frontend/analysis_worker.py. 8765 avoids 5000/7000, which macOS uses for
+    # the AirPlay Receiver.
+    port = int(os.environ.get("SECTIONIST_PORT", "8765"))
 
     print(f"🚀 Starting server on http://{host}:{port}")
     print("📡 Available endpoints:")

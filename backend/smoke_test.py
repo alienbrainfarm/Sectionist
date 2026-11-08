@@ -2,7 +2,7 @@
 """
 End-to-end smoke test for the Sectionist backend.
 
-Requires a running backend on 127.0.0.1:5000 (start it with ./start_server.sh
+Requires a running backend on 127.0.0.1:8765 (start it with ./start_server.sh
 or ``python server.py``). Generates a short synthetic audio file in memory,
 uploads it to ``POST /analyze`` and checks that the response looks like a real
 analysis result.
@@ -21,7 +21,7 @@ import wave
 import numpy as np
 import requests
 
-BACKEND_URL = os.environ.get("SECTIONIST_BACKEND_URL", "http://127.0.0.1:5000")
+BACKEND_URL = os.environ.get("SECTIONIST_BACKEND_URL", "http://127.0.0.1:8765")
 SAMPLE_RATE = 22050
 
 

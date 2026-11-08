@@ -2,7 +2,7 @@
 
 The HTTP layer is exercised against stubs so the suite runs without a live
 server. A real round-trip test is included but skipped unless the backend is
-listening on port 5000.
+listening on port 8765.
 """
 
 import os
@@ -16,7 +16,7 @@ from analysis_worker import (
     AnalysisWorker,
 )
 
-BACKEND_URL = os.environ.get("SECTIONIST_BACKEND_URL", "http://127.0.0.1:5000")
+BACKEND_URL = os.environ.get("SECTIONIST_BACKEND_URL", "http://127.0.0.1:8765")
 
 
 class FakeResponse:

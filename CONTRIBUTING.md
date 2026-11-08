@@ -121,7 +121,7 @@ The backend is fully implemented with Flask server and audio analysis.
    This script will:
    - Create a virtual environment
    - Install all dependencies
-   - Start the server on http://127.0.0.1:5000
+   - Start the server on http://127.0.0.1:8765
 
 2. **Manual setup** (alternative):
    ```bash
