@@ -194,10 +194,12 @@ Stems are on by default whenever Demucs is installed (`start_server.sh` and
   so riffs that change chord every beat or two are followed. On six synthetic
   songs with known chords this raised accuracy from 69% to 91% (99% with
   perfect stems, so separation quality is the limit).
-- **Lyrics** are transcribed from the vocal stem, and the lyrics panel opens
-  after every analysis (saying why if none came back).
+- **Lyrics** are transcribed from the vocal stem and split into lines from
+  Whisper's word timings, and the lyrics panel opens after every analysis
+  (saying why if none came back).
 - **The app loads the stems by itself** after an analysis that used them, so
-  the lanes appear without pressing **Split stems**.
+  the lanes appear without pressing **Split stems** (about 50 MB a song; turn
+  it off on a slow link with **Analysis → Load Stems After Analysis**).
 - **A guard against bad separations.** Demucs sometimes folds a
   voice-and-guitar recording almost entirely into the vocal stem. When the
   accompaniment stems hold under 10% of the song's energy (band recordings

@@ -161,7 +161,7 @@ def test_modules_stay_reviewably_sized():
         "theme.py": 400,
         "timeline_paint.py": 300,
         "stem_lanes.py": 400,
-        "stem_player.py": 280,
+        "stem_player.py": 260,
         "cycle.py": 300,
         "stems_client.py": 250,
         "stems_controller.py": 220,

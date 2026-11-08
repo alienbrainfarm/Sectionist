@@ -55,12 +55,25 @@ def format_lyrics(lines, sections=None, gap=2.0):
     return "\n".join(blocks)
 
 
-NO_LYRICS = (
-    "No lyrics came back from this analysis.\n\n"
-    "Lyrics need faster-whisper on the backend:\n"
+NO_TRANSCRIBER = (
+    "The backend can't transcribe lyrics.\n\n"
+    "On the machine running the backend, install faster-whisper:\n"
     "    pip install -r backend/requirements-lyrics.txt\n"
-    "then restart the server and analyse again. An instrumental also has none."
+    "then restart the server and analyse again."
 )
+NO_VOCALS = "No sung words were found in this song."
+NO_LYRICS = (  # an older backend that does not say whether it can transcribe
+    "No lyrics came back from this analysis: either an instrumental, or the "
+    "backend lacks faster-whisper (backend/requirements-lyrics.txt on the "
+    "machine running it)."
+)
+
+
+def missing_lyrics_reason(analysis):
+    available = analysis.get("lyrics_available")
+    if available is None:
+        return NO_LYRICS
+    return NO_VOCALS if available else NO_TRANSCRIBER
 
 
 def show_lyrics(dock, text, action, analysis, sections):
@@ -74,7 +87,7 @@ def show_lyrics(dock, text, action, analysis, sections):
     if lyrics:
         text.setPlainText(format_lyrics(lyrics, sections))
     elif analysis.get("sections"):
-        text.setPlainText(NO_LYRICS)
+        text.setPlainText(missing_lyrics_reason(analysis))
     else:
         text.clear()
         return

@@ -597,7 +597,8 @@ class SectionistMainWindow(QMainWindow):
                 # Save analysis data
                 analysis_file = song_folder / "analysis.json"
                 with open(analysis_file, "w") as f:
-                    json.dump(self.analysis_results, f, indent=2)
+                    saved = dict(self.analysis_results, cycle=self.cycle.saved())
+                    json.dump(saved, f, indent=2)
 
                 self.set_status(f"Saved to {song_folder}")
 
@@ -648,6 +649,7 @@ class SectionistMainWindow(QMainWindow):
             # Display results without re-analyzing
             self.analysis_results = results
             self.display_results(self.analysis_results)
+            self.cycle.restore(results.get("cycle"))
             self.save_action.setEnabled(True)
             self.set_status(f"Loaded {folder_path.name}")
 

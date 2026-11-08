@@ -241,6 +241,23 @@ class CycleController(QObject):
     def clear(self):
         self.set_region(None)
 
+    def saved(self):
+        """The region as stored in a saved song's analysis.json, or None."""
+        region = self.region
+        if region is None:
+            return None
+        return {"start": region.start, "end": region.end, "enabled": region.enabled}
+
+    def restore(self, saved):
+        """Bring back a region from a saved song (ignores anything malformed)."""
+        try:
+            region = CycleRegion(
+                float(saved["start"]), float(saved["end"]), bool(saved["enabled"])
+            )
+        except (TypeError, KeyError, ValueError):
+            region = None
+        self.set_region(region)
+
     # --- playback -------------------------------------------------------------
 
     def on_position(self, position):
@@ -254,6 +271,11 @@ class CycleController(QObject):
         # Playback moves ~50 ms per tick; a bigger jump is the user seeking,
         # possibly past the region, and must not be pulled back.
         playing_on = 0 <= position - previous < MAX_TICK
-        if playing_on and previous < region.end - EARLY <= position:
+        # Usually caught half a tick early; a start inside that last half
+        # tick is caught when it passes the end itself.
+        crossed = previous < region.end - EARLY <= position or (
+            previous < region.end <= position
+        )
+        if playing_on and crossed:
             self.last_position = region.start
             self.window.seek_to_position(region.start)

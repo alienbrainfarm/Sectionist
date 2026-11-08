@@ -267,6 +267,7 @@ def test_analyze_passes_downbeats_lyrics_and_chord_source():
         "beats_detected": 8,
         "chords": [],
         "chord_source": "stems",
+        "lyrics_available": True,
         "downbeats": [0.0, 2.0],
         "lyrics": [{"start": 0.0, "end": 1.0, "text": "hello"}],
     }
@@ -279,5 +280,6 @@ def test_analyze_passes_downbeats_lyrics_and_chord_source():
             )
     body = reply.get_json()["analysis"]
     assert body["chord_source"] == "stems"
+    assert body["lyrics_available"] is True
     assert body["downbeats"] == [0.0, 2.0]
     assert body["lyrics"][0]["text"] == "hello"

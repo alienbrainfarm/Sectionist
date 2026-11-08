@@ -212,3 +212,79 @@ def test_lyrics_panel_opens_with_a_reason_when_there_are_none(window):
 
     window.display_results({"success": True, "analysis": {}})
     assert window.lyrics_text.toPlainText() == ""
+
+
+def test_a_start_in_the_last_half_tick_still_loops(window, monkeypatch):
+    from cycle import CycleRegion
+
+    seeks = []
+    monkeypatch.setattr(window, "seek_to_position", seeks.append)
+    window.cycle.set_region(CycleRegion(16.0, 32.0))
+    window.audio_player.is_playing = True
+    window.cycle.last_position = 31.99  # started 10 ms before the end
+    window.cycle.on_position(32.04)
+    assert seeks == [16.0]
+
+
+def test_c_with_nothing_to_loop_leaves_cycle_off(qapp, monkeypatch):
+    import stems_controller
+    from main_window import SectionistMainWindow
+
+    monkeypatch.setattr(stems_controller, "playback_available", lambda: False)
+    window = SectionistMainWindow()
+    try:
+        window.cycle.action.trigger()  # no song, no sections
+        window.cycle.button.click()
+        assert window.cycle.region is None
+        assert not window.cycle.action.isChecked()
+        assert not window.cycle.button.isChecked()
+    finally:
+        window.close()
+
+
+def test_cycle_region_is_saved_and_restored(window):
+    from cycle import CycleRegion
+
+    window.cycle.set_region(CycleRegion(4.0, 12.0, enabled=False))
+    saved = window.cycle.saved()
+    window.cycle.clear()
+    window.cycle.restore(saved)
+    region = window.cycle.region
+    assert (region.start, region.end, region.enabled) == (4.0, 12.0, False)
+
+    window.cycle.restore({"start": "nonsense"})
+    assert window.cycle.region is None
+    window.cycle.restore(None)
+    assert window.cycle.region is None
+
+
+def test_automatic_stems_can_be_switched_off(window, monkeypatch):
+    import stems_controller
+
+    requests = []
+    monkeypatch.setattr(stems_controller, "playback_available", lambda: True)
+    monkeypatch.setattr(
+        window.stems, "split", lambda model, automatic=False: requests.append(model)
+    )
+    window.current_file = "song.wav"
+    window.stems.auto_action.setChecked(False)
+    try:
+        window.stems.analysis_finished({"chord_source": "stems"})
+        assert requests == []
+    finally:
+        window.stems.auto_action.setChecked(True)
+
+
+def test_missing_lyrics_explain_which_case_it_is(window):
+    from lyrics_view import NO_TRANSCRIBER, NO_VOCALS
+
+    base = {"sections": [{"start": 0, "end": 4}]}
+    window.display_results(
+        {"success": True, "analysis": dict(base, lyrics_available=False)}
+    )
+    assert window.lyrics_text.toPlainText() == NO_TRANSCRIBER
+    assert "machine running the backend" in NO_TRANSCRIBER
+    window.display_results(
+        {"success": True, "analysis": dict(base, lyrics_available=True)}
+    )
+    assert window.lyrics_text.toPlainText() == NO_VOCALS

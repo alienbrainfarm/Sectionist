@@ -6,7 +6,7 @@ are shown. Switching keeps the playhead where it was and carries on playing if
 the song was playing.
 """
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QSettings
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMenu, QMessageBox, QPushButton
 
@@ -49,6 +49,16 @@ class StemsController(QObject):
         header.insertWidget(header.indexOf(window.header.analyze_button), self.button)
         window.analysis_menu.addSeparator()
         window.analysis_menu.addMenu(self.menu).setText("Split &Stems")
+        # Stems come down after each analysis (~50 MB a song); worth turning
+        # off on a slow link to a remote backend. Remembered between runs.
+        self.auto_action = window.analysis_menu.addAction("Load Stems After Analysis")
+        self.auto_action.setCheckable(True)
+        self.auto_action.setChecked(
+            QSettings().value("stems/load_after_analysis", True, type=bool)
+        )
+        self.auto_action.toggled.connect(
+            lambda on: QSettings().setValue("stems/load_after_analysis", on)
+        )
         self.clear_action = window.analysis_menu.addAction("Clear Stem Cache")
         self.clear_action.setToolTip("Delete downloaded stems to free disk space")
         self.clear_action.triggered.connect(self.clear_cache)
@@ -82,6 +92,8 @@ class StemsController(QObject):
         switched off on the backend nothing is fetched.
         """
         if self.active or not self.window.current_file:
+            return
+        if not self.auto_action.isChecked():
             return
         if analysis.get("chord_source") != "stems" or not playback_available():
             return
