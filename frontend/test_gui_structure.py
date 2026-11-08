@@ -376,3 +376,15 @@ def test_format_lyrics_never_leaves_a_one_line_stanza():
     sections = [{"start": 0.0, "end": 4.0}, {"start": 4.0, "end": 8.0}]
 
     assert format_lyrics(lines, sections) == "a\nb"
+
+
+def test_shutdown_is_safe_with_nothing_playing(qapp):
+    """Ctrl-C calls this; it must not raise when nothing is loaded."""
+    from main_window import SectionistMainWindow
+
+    window = SectionistMainWindow()
+    try:
+        window.shutdown()  # no playback, no worker
+        window.shutdown()  # idempotent
+    finally:
+        window.close()

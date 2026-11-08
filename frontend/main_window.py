@@ -35,12 +35,14 @@ try:
     from .audio_player import AudioPlayer
     from .timeline_widget import TimelineWidget
     from .lyrics_view import create_lyrics_dock, format_lyrics
+    from .results_text import format_details, format_sections
 except ImportError:
     # Fall back to absolute imports (when run directly)
     from analysis_worker import AnalysisWorker
     from audio_player import AudioPlayer
     from timeline_widget import TimelineWidget
     from lyrics_view import create_lyrics_dock, format_lyrics
+    from results_text import format_details, format_sections
 
 
 class SectionistMainWindow(QMainWindow):
@@ -430,63 +432,12 @@ class SectionistMainWindow(QMainWindow):
 
         analysis = results.get("analysis", {})
 
-        # Display sections
         sections = analysis.get("sections", [])
-        sections_text = "Song Sections:\n\n"
-        for i, section in enumerate(sections, 1):
-            name = section.get("name", "Unknown")
-            start = section.get("start", 0)
-            end = section.get("end", 0)
-            confidence = section.get("confidence")
-
-            sections_text += f"{i}. {name}\n"
-            sections_text += (
-                f"   Time: {self.format_time(start)} - {self.format_time(end)}\n"
-            )
-            if confidence is None:
-                # Model-based engines do not report per-section confidence.
-                sections_text += "   Confidence: —\n\n"
-            else:
-                sections_text += f"   Confidence: {confidence:.1%}\n\n"
-
-        self.sections_text.setPlainText(sections_text)
-
-        # Display analysis details
-        details_text = "Analysis Details:\n\n"
-        details_text += f"Duration: {self.format_time(analysis.get('duration', 0))}\n"
-        details_text += f"Tempo: {analysis.get('tempo', 0):.1f} BPM\n"
-        details_text += f"Key: {analysis.get('key', 'Unknown')}\n"
-        details_text += f"Beats Detected: {analysis.get('beats_detected', 0)}\n"
-        details_text += f"Engine: {analysis.get('engine', 'librosa')}\n\n"
-
-        # Key changes
-        key_changes = analysis.get("key_changes", [])
-        if key_changes:
-            details_text += "Key Changes:\n"
-            for change in key_changes:
-                timestamp = change.get("timestamp", 0)
-                from_key = change.get("from_key", "Unknown")
-                to_key = change.get("to_key", "Unknown")
-                details_text += (
-                    f"  {self.format_time(timestamp)}: {from_key} → {to_key}\n"
-                )
-            details_text += "\n"
-
-        # Chords
-        chords = analysis.get("chords", [])
-        if chords:
-            details_text += f"Chords ({len(chords)}):\n"
-            for chord in chords:
-                name = chord.get("name", "Unknown")
-                start = chord.get("start", 0)
-                end = chord.get("end", 0)
-                details_text += (
-                    f"  {self.format_time(start)} - {self.format_time(end)}: {name}\n"
-                )
-
-        self.details_text.setPlainText(details_text)
+        self.sections_text.setPlainText(format_sections(sections))
+        self.details_text.setPlainText(format_details(analysis))
 
         # Update timeline
+        chords = analysis.get("chords", [])
         self.timeline.set_sections(sections)
         self.timeline.set_chords(chords)
         self.timeline.set_downbeats(analysis.get("downbeats", []))
@@ -711,6 +662,26 @@ class SectionistMainWindow(QMainWindow):
                 self.update_recent_menu()
         except Exception:
             pass  # Silently fail if can't load recent files
+
+    def shutdown(self):
+        """Release playback and background work so the process can exit."""
+        try:
+            self.playback_timer.stop()
+        except Exception:
+            pass
+
+        try:
+            self.audio_player.stop()
+        except Exception:
+            pass
+
+        worker = getattr(self, "analysis_worker", None)
+        if worker is not None and worker.isRunning():
+            worker.requestInterruption()
+            worker.quit()
+            if not worker.wait(2000):
+                worker.terminate()
+                worker.wait(500)
 
     def toggle_lyrics_panel(self):
         """Show or hide the lyrics dock."""
