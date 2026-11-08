@@ -104,6 +104,36 @@ def test_display_results_populates_panels_and_timeline(qapp):
         window.close()
 
 
+def test_sections_without_confidence_show_a_dash(qapp):
+    """Model-based engines omit confidence; the panel must not crash on it."""
+    from main_window import SectionistMainWindow
+
+    payload = {
+        "success": True,
+        "analysis": {
+            "duration": 30.0,
+            "tempo": 100.0,
+            "key": "A minor",
+            "key_changes": [],
+            "sections": [{"name": "Verse 1", "start": 0.0, "end": 30.0}],
+            "beats_detected": 50,
+            "chords": [],
+            "engine": "songformer",
+        },
+    }
+
+    window = SectionistMainWindow()
+    try:
+        window.display_results(payload)
+
+        sections_text = window.sections_text.toPlainText()
+        assert "Verse 1" in sections_text
+        assert "Confidence: —" in sections_text
+        assert "songformer" in window.details_text.toPlainText()
+    finally:
+        window.close()
+
+
 def test_display_results_ignores_failed_payload(qapp):
     from main_window import SectionistMainWindow
 

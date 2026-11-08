@@ -136,21 +136,36 @@ anything else.
 force-enabled. CPU is the supported path. The model avoids source separation
 entirely, which is what makes laptop inference practical at all.
 
-## Integration plan
+## Implementation
 
-1. Introduce `backend/analysis/` with a small engine protocol:
-   `analyze(path) -> dict` returning the same keys as today (`duration`,
-   `tempo`, `key`, `key_changes`, `sections`, `beats_detected`, `chords`).
-2. Ship two engines: `librosa` (current behaviour, always available) and
-   `songformer` (optional, loaded lazily, imports torch only when selected).
-3. Select with `SECTIONIST_ENGINE=songformer`, and `SECTIONIST_DEVICE=auto|cpu|mps|cuda`.
-4. Cache the loaded model between requests; keep the Flask server single-worker
-   so it is loaded once.
-5. Because the frontend honours `SECTIONIST_BACKEND_URL`, a laptop can run the
-   GUI while a desktop GPU machine does the analysis over the LAN.
+The plan is implemented in [backend/analysis](../backend/analysis).
 
-The response schema does not change, so the frontend, the saved-song format and
-the existing tests keep working.
+- `SECTIONIST_ENGINE` selects `auto` (default), `songformer` or `librosa`.
+- `SECTIONIST_DEVICE` defaults to CUDA when available and otherwise CPU. MPS is
+  opt-in, because of the cliff measured above.
+- Model sections are merged (adjacent identical labels) and numbered for
+  display (`Verse 1`, `Verse 2`).
+- The model supplies only sections. Tempo, key, beats and chords still come
+  from the librosa pipeline, so the response schema, the frontend and saved
+  songs are unchanged.
+- Model sections carry no confidence, so the UI shows `—` rather than inventing
+  a number.
+- The optional dependencies live in `backend/requirements-songformer.txt` and
+  are not installed by CI.
+
+### Known limitations
+
+- **Repeated sections can receive different labels.** On `theone.mp3` the same
+  pre-chorus was labelled `chorus` at 48-80 s and `pre-chorus` at 128-144 s.
+  The model labels frames independently, so identical material is not
+  guaranteed the same label. Fixing it needs section-level consistency:
+  compare sections by audio similarity, then reconcile using the model's frame
+  probabilities. That is not implemented yet.
+- **Weak boundaries can be missed.** The 48-80 s section contains material that
+  is split elsewhere, yet no boundary was placed inside it. The UI can split
+  sections manually.
+- Sounds are not snapped to beats, so boundary precision is limited to the
+  model's frame rate (~8.3 frames per second after downsampling).
 
 ## Spike results
 

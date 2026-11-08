@@ -1,0 +1,19 @@
+# Optional dependencies for the SongFormer segmentation engine.
+#
+#   pip install -r requirements-songformer.txt
+#
+# This is deliberately separate from requirements.txt: it pulls in PyTorch and
+# a ~2.8 GB model download, which most users and CI do not need.
+#
+# transformers must stay below 5.x: MuQ's constructor fails on a meta-device
+# tensor mismatch with transformers 5.
+
+torch>=2.7
+torchaudio>=2.7
+transformers>=4.45,<5
+x-transformers
+einops
+omegaconf
+ema-pytorch
+muq
+msaf

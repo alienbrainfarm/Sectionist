@@ -16,11 +16,12 @@ key detection, and tempo estimation.
 
 import os
 import sys
+import threading
 import traceback
 import tempfile
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
-from example import analyze_audio_file
+from analysis import EngineUnavailable, available_engines, get_analyzer
 
 app = Flask(__name__)
 
@@ -33,6 +34,38 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
 
+_analyzer = None
+_analyzer_lock = threading.Lock()
+
+
+def analyze_audio_file(file_path):
+    """Analyse a file with the configured engine.
+
+    Kept as a module-level function so tests can patch it and so the model is
+    created once and reused across requests.
+    """
+    global _analyzer
+    if _analyzer is None:
+        with _analyzer_lock:
+            if _analyzer is None:
+                _analyzer = get_analyzer()
+    return _analyzer.analyze(file_path)
+
+
+def engine_status():
+    """Report the configured and resolved engine without loading a model."""
+    configured = os.environ.get("SECTIONIST_ENGINE", "auto")
+    try:
+        active = get_analyzer().name
+    except EngineUnavailable:
+        active = "unavailable"
+    return {
+        "configured": configured,
+        "active": active,
+        "available": available_engines(),
+    }
+
+
 def allowed_file(filename):
     """Check if the uploaded file has an allowed extension."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -42,7 +75,13 @@ def allowed_file(filename):
 def health_check():
     """Health check endpoint to verify server is running."""
     return jsonify(
-        {"status": "healthy", "version": "1.0.0", "backend": "python-librosa"}
+        {
+            "status": "healthy",
+            "version": "1.0.0",
+            "backend": "python-librosa",
+            "engine": engine_status()["active"],
+            "engines": engine_status(),
+        }
     )
 
 
@@ -98,6 +137,7 @@ def analyze_audio():
                     "sections": results["sections"],
                     "beats_detected": results["beats_detected"],
                     "chords": results["chords"],
+                    "engine": results.get("engine", "librosa"),
                 },
             }
 
@@ -112,6 +152,9 @@ def analyze_audio():
             except OSError:
                 pass  # Ignore cleanup errors
 
+    except EngineUnavailable as e:
+        print(f"Engine unavailable: {e}")
+        return jsonify({"success": False, "error": str(e)}), 503
     except Exception as e:
         print(f"Error during analysis: {str(e)}")
         traceback.print_exc()
@@ -131,6 +174,10 @@ def main():
     print(f"📁 Upload folder: {UPLOAD_FOLDER}")
     print(f"📏 Max file size: {MAX_CONTENT_LENGTH // (1024*1024)}MB")
     print(f"🎶 Supported formats: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
+    print()
+
+    print(f"🧠 Engines available: {', '.join(available_engines())}")
+    print(f"🧠 Engine selected: {os.environ.get('SECTIONIST_ENGINE', 'auto')}")
     print()
 
     # Check if librosa is available
