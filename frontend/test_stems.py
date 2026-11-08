@@ -360,3 +360,61 @@ def test_stem_waveforms_line_up_with_the_timeline(window, qapp):
         == waveform.mapTo(window, QPoint(0, 0)).x()
     )
     assert timeline.width() == waveform.width()
+
+
+def test_window_starts_without_numpy_installed():
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    # numpy is only needed for stems; an existing install must still start.
+    script = (
+        "import sys; sys.modules['numpy'] = None\n"
+        "from PyQt6.QtWidgets import QApplication\n"
+        "app = QApplication([])\n"
+        "import stem_player\n"
+        "from main_window import SectionistMainWindow\n"
+        "window = SectionistMainWindow()\n"
+        "assert stem_player.playback_available() is False\n"
+        "print('started')\n"
+    )
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert "started" in result.stdout, result.stderr
+
+
+def test_local_cache_is_capped_and_can_be_cleared(monkeypatch, tmp_path):
+    import os
+
+    import stems_client
+
+    monkeypatch.setenv("SECTIONIST_STEMS_DIR", str(tmp_path))
+    folders = []
+    for index in range(3):
+        folder = tmp_path / f"key{index}-htdemucs"
+        folder.mkdir()
+        (folder / "vocals.flac").write_bytes(b"x" * 1024 * 1024)
+        os.utime(folder, (1000 + index, 1000 + index))
+        folders.append(folder)
+
+    removed = stems_client.prune_cache(limit_mb=2.5, keep=folders[0])
+    assert removed == [folders[1]]  # oldest that is not being kept
+    assert stems_client.clear_cache() == pytest.approx(2.0)
+    assert not tmp_path.exists()
+
+
+def test_clear_cache_is_in_the_analysis_menu(window, monkeypatch):
+    import stems_controller
+
+    monkeypatch.setattr(stems_controller, "clear_cache", lambda: 12.0)
+    assert window.stems.clear_action in window.analysis_menu.actions()
+    window.stems.clear_action.trigger()
+    assert "12 MB" in window.status_label.text()

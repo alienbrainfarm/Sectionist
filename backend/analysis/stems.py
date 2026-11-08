@@ -6,7 +6,7 @@ Stems serve the whole analysis whenever Demucs is installed:
   vocals, drums, bass and other (plus guitar and piano with the six-stem model)
   so the frontend can mute and solo them.
 - Chords are read from the accompaniment and bass stems (stem_chords.py),
-  which on songs with known chords raised accuracy from 69% to 87%.
+  which on songs with known chords raised accuracy from 69% to 91%.
 - Lyrics are transcribed from the vocal stem instead of the full mix.
 
 Separation takes a few seconds on a GPU and roughly half the song's length on a
@@ -29,6 +29,9 @@ from pathlib import Path
 
 STEMS_ENV = "SECTIONIST_STEMS"
 CACHE_ENV = "SECTIONIST_STEMS_CACHE"
+CACHE_LIMIT_ENV = "SECTIONIST_STEMS_CACHE_MB"
+# A four-minute song's stems take roughly 50 MB, so this keeps ~40 songs.
+DEFAULT_CACHE_MB = 2048
 
 # Demucs models offered to the frontend, in the order they are listed there.
 MODELS = {
@@ -103,7 +106,10 @@ def cached_stems(folder):
 
 
 def find_cached(key):
-    """(model, stems) for the best separation already cached, or (None, None).
+    """Return ``(model, {name: path})`` for the best cached separation.
+
+    ``key`` is content_key(file); returns ``(None, None)`` when nothing is
+    cached. (cached_stems takes a folder and returns only the dict.)
 
     The six-stem model comes first: its guitar and piano stems are harmony
     that the four-stem models leave mixed into "other".
@@ -153,6 +159,7 @@ def separate(file_path, model=DEFAULT_MODEL, progress=None, key=None):
     folder = stem_folder(key or content_key(file_path), model)
     stems = cached_stems(folder)
     if stems:
+        _touch(folder)
         return stems
 
     import soundfile as sf
@@ -176,22 +183,70 @@ def separate(file_path, model=DEFAULT_MODEL, progress=None, key=None):
         # Write into a scratch folder and move it into place, so a crash half
         # way through never leaves a cache entry with missing stems.
         scratch = Path(tempfile.mkdtemp(dir=cache_root_ready()))
-        for name, tensor in separated.items():
-            samples = tensor.cpu().numpy().T.clip(-1.0, 1.0)
-            sf.write(
-                scratch / f"{name}.flac",
-                samples,
-                separator.samplerate,
-                format="FLAC",
-                subtype="PCM_16",
-            )
-        manifest = {"stems": ordered(separated), "model": model}
-        (scratch / MANIFEST).write_text(json.dumps(manifest), encoding="utf-8")
-        if folder.exists():
-            shutil.rmtree(folder, ignore_errors=True)
-        scratch.rename(folder)
+        try:
+            for name, tensor in separated.items():
+                samples = tensor.cpu().numpy().T.clip(-1.0, 1.0)
+                sf.write(
+                    scratch / f"{name}.flac",
+                    samples,
+                    separator.samplerate,
+                    format="FLAC",
+                    subtype="PCM_16",
+                )
+            manifest = {"stems": ordered(separated), "model": model}
+            (scratch / MANIFEST).write_text(json.dumps(manifest), encoding="utf-8")
+            if folder.exists():
+                shutil.rmtree(folder, ignore_errors=True)
+            scratch.rename(folder)
+        finally:
+            # Only left behind when writing failed part way.
+            shutil.rmtree(scratch, ignore_errors=True)
+        prune_cache(keep=folder)
 
     return cached_stems(folder)
+
+
+def _touch(folder):
+    """Mark a cache entry as recently used, so pruning keeps it."""
+    try:
+        os.utime(folder)
+    except OSError:
+        pass
+
+
+def cache_limit_bytes():
+    try:
+        megabytes = float(os.environ.get(CACHE_LIMIT_ENV, DEFAULT_CACHE_MB))
+    except ValueError:
+        megabytes = DEFAULT_CACHE_MB
+    return int(megabytes * 1024 * 1024)
+
+
+def prune_cache(limit=None, keep=None):
+    """Delete the least recently used separations until the cache fits.
+
+    Returns the folders removed. ``keep`` is never removed.
+    """
+    limit = cache_limit_bytes() if limit is None else limit
+    root = cache_root()
+    if not root.exists():
+        return []
+    entries = []
+    for folder in root.iterdir():
+        if folder.is_dir():
+            size = sum(f.stat().st_size for f in folder.iterdir() if f.is_file())
+            entries.append((folder.stat().st_mtime, size, folder))
+    total = sum(size for _mtime, size, _folder in entries)
+    removed = []
+    for _mtime, size, folder in sorted(entries):
+        if total <= limit:
+            break
+        if keep is not None and folder == Path(keep):
+            continue
+        shutil.rmtree(folder, ignore_errors=True)
+        total -= size
+        removed.append(folder)
+    return removed
 
 
 def cache_root_ready():

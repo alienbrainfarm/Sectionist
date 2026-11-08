@@ -12,6 +12,11 @@ import uuid
 from . import stems as stem_separation
 
 KEEP_JOBS = 32  # finished jobs remembered for polling and download
+MAX_PENDING = 8  # queued or running; more is refused rather than piling up
+
+
+class TooManyJobs(RuntimeError):
+    pass
 
 
 class StemJob:
@@ -41,6 +46,9 @@ _jobs_lock = threading.Lock()
 
 def _remember(job):
     with _jobs_lock:
+        pending = [j for j in _jobs.values() if j.status in ("queued", "running")]
+        if len(pending) >= MAX_PENDING:
+            raise TooManyJobs("Too many stem jobs waiting; try again shortly.")
         _jobs[job.id] = job
         excess = len(_jobs) - KEEP_JOBS
         if excess > 0:
@@ -68,16 +76,24 @@ def _run(job, file_path, separate):
         job.error = str(error) or error.__class__.__name__
         job.status = "error"
     finally:
-        try:
-            os.remove(file_path)
-        except OSError:
-            pass
+        _remove(file_path)
+
+
+def _remove(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 def start_job(file_path, model, separate=None, background=True):
     """Separate ``file_path`` (which the job deletes when done) into stems."""
     job = StemJob(model)
-    _remember(job)
+    try:
+        _remember(job)
+    except TooManyJobs:
+        _remove(file_path)
+        raise
     args = (job, file_path, separate or stem_separation.separate)
     if background:
         threading.Thread(target=_run, args=args, daemon=True).start()

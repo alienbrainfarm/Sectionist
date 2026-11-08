@@ -12,16 +12,19 @@ one for the other without knowing which it is talking to.
 import threading
 from dataclasses import dataclass, field
 
-import numpy as np
+# numpy and soundfile are imported where they are used, so the window (and
+# its tests) start without them; they are only needed once there are stems.
 
 BLOCK_FRAMES = 1024
 PEAK_BINS = 1600
 
 
 def playback_available():
-    """True when sounddevice (and its PortAudio library) can be loaded."""
+    """True when numpy, soundfile and sounddevice (PortAudio) all load."""
     try:
+        import numpy  # noqa: F401
         import sounddevice  # noqa: F401
+        import soundfile  # noqa: F401
     except (ImportError, OSError):
         return False
     return True
@@ -51,6 +54,8 @@ def compute_peaks(samples, bins=PEAK_BINS):
     The square root lifts quiet passages so a soft stem is still visible, while
     keeping every stem on the same scale so their levels can be compared.
     """
+    import numpy as np
+
     if len(samples) == 0:
         return np.zeros(0, dtype=np.float32)
     mono = np.abs(samples.astype(np.int32)).max(axis=1)
@@ -62,6 +67,7 @@ def compute_peaks(samples, bins=PEAK_BINS):
 
 def load_stem_set(paths, model=""):
     """Decode {name: audio file} into a StemSet, padded to a common length."""
+    import numpy as np
     import soundfile as sf
 
     samples, rate = {}, None
@@ -133,6 +139,8 @@ class StemPlayer:
 
     def mix(self, frames):
         """The next ``frames`` of output, and whether the song has ended."""
+        import numpy as np
+
         out = np.zeros((frames, 2), dtype=np.float32)
         with self._lock:
             stem_set = self.stem_set

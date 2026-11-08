@@ -12,10 +12,10 @@ from PyQt6.QtWidgets import QMenu, QMessageBox, QPushButton
 
 try:
     from .stem_player import StemPlayer, playback_available
-    from .stems_client import STEM_MODELS, StemsWorker
+    from .stems_client import STEM_MODELS, StemsWorker, clear_cache
 except ImportError:
     from stem_player import StemPlayer, playback_available
-    from stems_client import STEM_MODELS, StemsWorker
+    from stems_client import STEM_MODELS, StemsWorker, clear_cache
 
 INSTALL_HINT = (
     "Playing stems needs the sounddevice and soundfile packages.\n"
@@ -48,6 +48,9 @@ class StemsController(QObject):
         header.insertWidget(header.indexOf(window.header.analyze_button), self.button)
         window.analysis_menu.addSeparator()
         window.analysis_menu.addMenu(self.menu).setText("Split &Stems")
+        self.clear_action = window.analysis_menu.addAction("Clear Stem Cache")
+        self.clear_action.setToolTip("Delete downloaded stems to free disk space")
+        self.clear_action.triggered.connect(self.clear_cache)
 
         self.lanes.mix_changed.connect(self.stem_player.set_audible)
         self.lanes.seek_requested.connect(window.seek_to_position)
@@ -167,6 +170,11 @@ class StemsController(QObject):
         self.stem_player.close()
         self.lanes.clear()
         self.gutter.setVisible(False)
+
+    def clear_cache(self):
+        """Free the disk space downloaded stems use; they download again."""
+        freed = clear_cache()
+        self.window.set_status(f"Cleared {freed:.0f} MB of downloaded stems")
 
     def shutdown(self):
         self.cancel()

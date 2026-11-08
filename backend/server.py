@@ -148,7 +148,10 @@ def split_stems():
     os.close(handle)
     file.save(temp_path)
 
-    job = start_stem_job(temp_path, model)
+    try:
+        job = start_stem_job(temp_path, model)
+    except stem_jobs.TooManyJobs as busy:
+        return jsonify({"error": str(busy)}), 429
     return jsonify(job.info()), 202
 
 
@@ -165,6 +168,8 @@ def download_stem(job_id, stem):
     job = stem_jobs.get_job(job_id)
     if job is None or job.status != "done" or stem not in job.stems:
         return jsonify({"error": "No such stem"}), 404
+    if not os.path.exists(job.stems[stem]):  # pruned from the cache since
+        return jsonify({"error": "Stem expired; split the song again"}), 404
     return send_file(job.stems[stem], mimetype="audio/flac")
 
 

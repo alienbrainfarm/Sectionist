@@ -33,6 +33,7 @@ STEM_MODELS = (
 )
 DEFAULT_MODEL = STEM_MODELS[0][0]
 MANIFEST = "stems.json"
+CACHE_LIMIT_MB = float(os.environ.get("SECTIONIST_STEMS_DIR_MB", 2048))
 POLL_SECONDS = 0.5
 REQUEST_TIMEOUT = 30
 JOB_TIMEOUT = 30 * 60  # a long song with the slow model on a CPU
@@ -64,7 +65,47 @@ def cached_stems(key, model):
     except (OSError, ValueError, KeyError):
         return None
     paths = {name: folder / f"{name}.flac" for name in names}
-    return paths if all(p.exists() for p in paths.values()) else None
+    if not all(p.exists() for p in paths.values()):
+        return None
+    try:
+        os.utime(folder)  # recently used: pruning keeps it
+    except OSError:
+        pass
+    return paths
+
+
+def prune_cache(limit_mb=None, keep=None):
+    """Delete least recently used stems until the cache fits its cap."""
+    limit = (CACHE_LIMIT_MB if limit_mb is None else limit_mb) * 1024 * 1024
+    root = cache_root()
+    if not root.exists():
+        return []
+    entries = []
+    for folder in root.iterdir():
+        if folder.is_dir():
+            size = sum(f.stat().st_size for f in folder.iterdir() if f.is_file())
+            entries.append((folder.stat().st_mtime, size, folder))
+    total = sum(size for _mtime, size, _folder in entries)
+    removed = []
+    for _mtime, size, folder in sorted(entries):
+        if total <= limit:
+            break
+        if keep is not None and folder == keep:
+            continue
+        shutil.rmtree(folder, ignore_errors=True)
+        total -= size
+        removed.append(folder)
+    return removed
+
+
+def clear_cache():
+    """Delete every downloaded stem; returns the megabytes freed."""
+    root = cache_root()
+    if not root.exists():
+        return 0.0
+    freed = sum(f.stat().st_size for f in root.rglob("*") if f.is_file())
+    shutil.rmtree(root, ignore_errors=True)
+    return freed / (1024 * 1024)
 
 
 def find_cached(key):
@@ -168,6 +209,7 @@ class StemsWorker(QThread):
             scratch.rename(folder)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
+        prune_cache(keep=folder)
         return cached_stems(key, model)
 
     @staticmethod

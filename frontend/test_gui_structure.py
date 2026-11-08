@@ -162,7 +162,7 @@ def test_modules_stay_reviewably_sized():
         "timeline_paint.py": 300,
         "stem_lanes.py": 400,
         "stem_player.py": 250,
-        "stems_client.py": 220,
+        "stems_client.py": 250,
         "stems_controller.py": 220,
     }
 

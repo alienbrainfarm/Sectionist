@@ -6,7 +6,6 @@ labels) while stems are shown, so a beat in a waveform sits exactly under the
 same moment in the section and chord lanes.
 """
 
-import numpy as np
 from PyQt6.QtCore import QLineF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPixmap
 from PyQt6.QtWidgets import (
@@ -67,6 +66,8 @@ def audible_stems(names, muted, soloed):
 
 def column_peaks(peaks, width):
     """Resample peaks to one value per pixel column."""
+    import numpy as np
+
     if width <= 0 or len(peaks) == 0:
         return np.zeros(max(width, 0), dtype=np.float32)
     edges = np.linspace(0, len(peaks), width + 1).astype(np.int64)
@@ -256,7 +257,7 @@ class StemLanes(QWidget):
         self.model_label.setText(stem_set.model)
         self.duration = duration
         for name in stem_set.names:
-            row = StemRow(name, stem_set.peaks.get(name, np.zeros(0)))
+            row = StemRow(name, stem_set.peaks.get(name, ()))
             row.mute_button.clicked.connect(lambda _=False, n=name: self.toggle_mute(n))
             row.solo_button.clicked.connect(lambda _=False, n=name: self.toggle_solo(n))
             row.waveform.seek_requested.connect(self.seek_requested)

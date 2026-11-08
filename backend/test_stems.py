@@ -200,3 +200,55 @@ def test_health_lists_stem_models(client):
     assert info["available"] is True
     assert info["default"] == "htdemucs"
     assert "htdemucs_6s" in info["models"]
+
+
+def test_cache_keeps_the_most_recently_used_songs(fake_demucs, tmp_path):
+    import os
+    import time
+
+    from analysis import stems
+
+    folders = []
+    for index in range(3):
+        song = tmp_path / f"song{index}.wav"
+        sf.write(song, np.full((800, 2), index / 10), 8000)
+        folders.append(stems.separate(song)["vocals"].parent)
+    old = time.time() - 100
+    for age, folder in enumerate(folders):
+        os.utime(folder, (old + age, old + age))
+    stems.separate(tmp_path / "song0.wav")  # used again: now the newest
+
+    size = sum(f.stat().st_size for f in folders[0].iterdir())
+    removed = stems.prune_cache(limit=size * 2 + 1)
+    assert removed == [folders[1]]
+    assert folders[0].exists() and folders[2].exists()
+
+
+def test_failed_write_leaves_no_scratch_folder(fake_demucs, song, monkeypatch):
+    import soundfile
+
+    from analysis import stems
+
+    def broken(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(soundfile, "write", broken)
+    with pytest.raises(OSError):
+        stems.separate(song)
+    assert list(stems.cache_root().iterdir()) == []
+
+
+def test_too_many_waiting_jobs_are_refused(client, song, monkeypatch):
+    from analysis import stem_jobs
+
+    monkeypatch.setattr(stem_jobs, "MAX_PENDING", 0)
+    response = upload(client, song)
+    assert response.status_code == 429
+
+
+def test_a_stem_pruned_from_the_cache_is_a_404(client, song):
+    job_id = upload(client, song).get_json()["job_id"]
+    from analysis import stem_jobs
+
+    stem_jobs.get_job(job_id).stems["vocals"].unlink()
+    assert client.get(f"/stems/{job_id}/vocals").status_code == 404

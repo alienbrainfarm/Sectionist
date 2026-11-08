@@ -249,3 +249,35 @@ def test_health_reports_the_cached_engine(client, monkeypatch):
 
     assert data["engine"] == "fake-engine"
     assert data["engines"]["active"] == "fake-engine"
+
+
+# Regression: /analyze used to drop these, so bar lines and lyrics never
+# reached the app.
+def test_analyze_passes_downbeats_lyrics_and_chord_source():
+    import io
+
+    import server
+
+    analysis = {
+        "duration": 4.0,
+        "tempo": 120.0,
+        "key": "C major",
+        "key_changes": [],
+        "sections": [],
+        "beats_detected": 8,
+        "chords": [],
+        "chord_source": "stems",
+        "downbeats": [0.0, 2.0],
+        "lyrics": [{"start": 0.0, "end": 1.0, "text": "hello"}],
+    }
+    server.app.config["TESTING"] = True
+    with patch("server.analyze_audio_file", return_value=analysis):
+        with server.app.test_client() as client:
+            data = {"audio": (io.BytesIO(b"RIFF"), "song.wav")}
+            reply = client.post(
+                "/analyze", data=data, content_type="multipart/form-data"
+            )
+    body = reply.get_json()["analysis"]
+    assert body["chord_source"] == "stems"
+    assert body["downbeats"] == [0.0, 2.0]
+    assert body["lyrics"][0]["text"] == "hello"

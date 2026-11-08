@@ -186,9 +186,15 @@ Stems are on by default whenever Demucs is installed (`start_server.sh` and
   each beat, weighted towards the downbeat, anchors the chord's root. That is
   what separates relative chords such as C and Am, which share two notes. When
   the bass sits on another chord tone the chord is named as an inversion, e.g.
-  `C/E`. On six synthetic songs with known chords this raised accuracy from 69%
-  to 87% (97% with perfect stems, so separation quality is the limit).
+  `C/E`. Chords are sticky, but less so on a beat where the bass clearly moves,
+  so riffs that change chord every beat or two are followed. On six synthetic
+  songs with known chords this raised accuracy from 69% to 91% (99% with
+  perfect stems, so separation quality is the limit).
 - **Lyrics** are transcribed from the vocal stem.
+- **A guard against bad separations.** Demucs sometimes folds a
+  voice-and-guitar recording almost entirely into the vocal stem. When the
+  accompaniment stems hold under 10% of the song's energy (band recordings
+  measure 66-85%), chords are read from the mix instead and the result says so.
 
 Separation takes a few seconds on a GPU and roughly half the song's length on
 a CPU. Analysis and the stem splitter share one cache, so whichever runs first
@@ -205,7 +211,10 @@ pays for it. `SECTIONIST_STEMS=off` analyses from the full mix instead.
 Model weights download on first use. Stems are cached on both sides: the
 backend keeps them by the song's contents, and the frontend keeps a copy in its
 data folder, so reopening a song shows its stems straight away without asking
-the backend. Stems play through a small mixer of their own rather than VLC, so
+the backend. Each cache is capped at 2 GB (roughly 40 songs), dropping the
+least recently used songs first; set `SECTIONIST_STEMS_CACHE_MB` (backend) or
+`SECTIONIST_STEMS_DIR_MB` (frontend) to change it, and **Analysis → Clear Stem
+Cache** empties the frontend's copy. Stems play through a small mixer of their own rather than VLC, so
 muting is instant and the stems never drift apart; it uses numpy, soundfile
 and sounddevice from `frontend/requirements.txt`, and on Linux needs PortAudio
 (`sudo apt install libportaudio2`).

@@ -1,14 +1,22 @@
 """Tests for chord recognition from stems, anchored on the bass."""
 
-import io
-from unittest.mock import patch
-
 import numpy as np
 import pytest
 
 SR = 22050
 BEAT = 0.5
-NOTE = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+NOTE = {
+    "C": 0,
+    "C#": 1,
+    "D": 2,
+    "E": 4,
+    "F": 5,
+    "F#": 6,
+    "G": 7,
+    "G#": 8,
+    "A": 9,
+    "B": 11,
+}
 
 
 def hz(midi):
@@ -161,29 +169,50 @@ def test_engine_falls_back_to_the_mix_and_says_which(monkeypatch):
     assert result["chord_source"] == "stems"
 
 
-def test_server_passes_downbeats_lyrics_and_chord_source():
-    import server
+def test_chords_follow_a_bass_riff_that_changes_every_beat():
+    # E E D A in every bar, like "Gloria": the harmony only hints at it, the
+    # bass states it. A uniformly sticky decoder holds one chord throughout.
+    riff = [["E"], ["E"], ["D"], ["A"]] * 4
+    chord_notes = {"E": ["E", "G#", "B"], "D": ["D", "F#", "A"], "A": ["A", "C#", "E"]}
+    harmony = bars([chord_notes[n[0]] for n in riff], octave=4, beats_per_bar=1)
+    harmony = 0.7 * harmony + 0.3 * bars([["E", "A"]] * 16, octave=4, beats_per_bar=1)
+    bass = bars(riff, octave=2, beats_per_bar=1, harmonics=4)
+    beats = [i * BEAT for i in range(16)]
 
-    analysis = {
-        "duration": 4.0,
-        "tempo": 120.0,
-        "key": "C major",
-        "key_changes": [],
-        "sections": [],
-        "beats_detected": 8,
-        "chords": [],
-        "chord_source": "stems",
-        "downbeats": [0.0, 2.0],
-        "lyrics": [{"start": 0.0, "end": 1.0, "text": "hello"}],
-    }
-    server.app.config["TESTING"] = True
-    with patch("server.analyze_audio_file", return_value=analysis):
-        with server.app.test_client() as client:
-            data = {"audio": (io.BytesIO(b"RIFF"), "song.wav")}
-            reply = client.post(
-                "/analyze", data=data, content_type="multipart/form-data"
-            )
-    body = reply.get_json()["analysis"]
-    assert body["chord_source"] == "stems"
-    assert body["downbeats"] == [0.0, 2.0]
-    assert body["lyrics"][0]["text"] == "hello"
+    from analysis.stem_chords import detect_chords_from_stems
+
+    adaptive = detect_chords_from_stems(harmony, bass, SR, beats, beats[::4])
+    sticky = detect_chords_from_stems(
+        harmony, bass, SR, beats, beats[::4], moving_transition=0.97
+    )
+    assert [c["name"] for c in adaptive][:3] == ["E", "D", "A"]
+    assert len(adaptive) == 12 and len(sticky) <= 3
+
+
+def write_stems(folder, levels):
+    import soundfile as sf
+
+    folder.mkdir(parents=True, exist_ok=True)
+    tone = np.sin(np.linspace(0, 400, SR))
+    paths = {}
+    for name, level in levels.items():
+        paths[name] = folder / f"{name}.flac"
+        sf.write(paths[name], level * tone, SR)
+    return paths
+
+
+def test_near_silent_accompaniment_falls_back_to_the_mix(tmp_path, monkeypatch):
+    from analysis import stem_chords
+
+    # Demucs put the whole recording into "vocals": accompaniment is ~0.2%.
+    paths = write_stems(
+        tmp_path, {"vocals": 0.15, "other": 0.007, "bass": 0.0001, "drums": 0.001}
+    )
+    assert stem_chords.accompaniment_share(paths) < 0.01
+    monkeypatch.setattr(stem_chords, "stems_for_chords", lambda path: paths)
+    assert stem_chords.chords_for_file("song.mp3", beats=[0, 0.5, 1.0]) is None
+
+    band = write_stems(
+        tmp_path / "band", {"vocals": 0.1, "other": 0.1, "bass": 0.1, "drums": 0.1}
+    )
+    assert 0.4 < stem_chords.accompaniment_share(band) < 0.6

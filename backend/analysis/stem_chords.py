@@ -31,11 +31,16 @@ from .chords import (
     confidence_of,
     merge_runs,
     template_specs,
-    viterbi,
     with_edges,
 )
 
 HARMONY_STEMS = ("other", "guitar", "piano")
+ACCOMPANIMENT_STEMS = HARMONY_STEMS + ("bass",)
+# Below this share of the song's energy the accompaniment stems are mostly
+# separation artefacts: Demucs sometimes folds a voice-and-guitar recording
+# almost entirely into "vocals". Band recordings measured 66-85%; one such
+# acoustic recording measured 0.2%.
+MIN_ACCOMPANIMENT_SHARE = 0.10
 HOP = 512
 BASS_FMIN = 41.2  # E1, the lowest string of a four-string bass
 BASS_OCTAVES = 3
@@ -136,6 +141,44 @@ def downbeat_flags(times, downbeats, tolerance=0.07):
     return nearest <= tolerance
 
 
+def bass_changes(distributions, strengths):
+    """0-1 per beat: how clearly the bass moved to a new note on this beat."""
+    changes = np.zeros(len(distributions))
+    for beat in range(1, len(distributions)):
+        same = float(np.dot(distributions[beat], distributions[beat - 1]))
+        both = min(strengths[beat], strengths[beat - 1])
+        changes[beat] = both * (1.0 - min(1.0, same))
+    return changes
+
+
+def viterbi_varying(emissions, stay):
+    """Viterbi where the chance of keeping the chord differs per beat."""
+    frames, states = emissions.shape
+    if frames == 0:
+        return []
+    score = emissions[0]
+    backpointer = np.zeros((frames, states), dtype=np.int16)
+    for frame in range(1, frames):
+        log_stay = np.log(stay[frame])
+        log_switch = np.log((1.0 - stay[frame]) / max(1, states - 1))
+        best = int(score.argmax())
+        # Either stay in the same state or come from the best other one.
+        from_best = score[best] + log_switch
+        stay_score = score + log_stay
+        take_best = from_best > stay_score
+        backpointer[frame] = np.where(take_best, best, np.arange(states))
+        score = np.where(take_best, from_best, stay_score) + emissions[frame]
+        # A state cannot switch from itself; fix the best state's own entry.
+        if take_best[best]:
+            backpointer[frame, best] = best
+            score[best] = stay_score[best] + emissions[frame, best]
+    path = np.zeros(frames, dtype=np.int16)
+    path[-1] = int(score.argmax())
+    for frame in range(frames - 1, 0, -1):
+        path[frame - 1] = backpointer[frame, path[frame]]
+    return path.tolist()
+
+
 def slash_names(chords, times, path, specs, names, distributions, strengths):
     """Rename chords whose bass sits on a chord tone other than the root."""
     spans, start = [], 0
@@ -171,6 +214,7 @@ def detect_chords_from_stems(
     bass_weight=4.0,
     sharpness=12.0,
     self_transition=0.97,
+    moving_transition=0.6,
     slash=True,
 ):
     """Chords from a harmony signal and a bass signal (mono, same rate).
@@ -192,6 +236,7 @@ def detect_chords_from_stems(
     similarities = _frame_similarities(observations, templates)
 
     emissions = sharpness * similarities
+    stay = np.full(len(observations), self_transition)
     if bass is not None and bass_weight:
         salience, loudness = bass_salience(bass, sr, hop_length)
         distributions, strengths = bass_per_beat(
@@ -201,9 +246,14 @@ def detect_chords_from_stems(
         emissions = emissions + bass_weight * bass_scores(
             distributions, strengths, specs, flags
         )
+        # Chords are sticky, but where the bass clearly moves to a new note
+        # a change is plausible: riffs like E-D-A change chord every beat or
+        # two, which a uniformly sticky decoder smooths into one chord.
+        moved = bass_changes(distributions, strengths)
+        stay = self_transition - (self_transition - moving_transition) * moved
     # Normalise per beat as the mix detector does.
     emissions = _emission_scores(emissions, sharpness=1.0)
-    path = viterbi(emissions, self_transition=self_transition)
+    path = viterbi_varying(emissions, stay)
     chords = merge_runs(path, names, confidence_of(similarities, path), times)
     if slash and bass is not None and bass_weight:
         chords = slash_names(
@@ -228,12 +278,33 @@ def stems_for_chords(file_path):
     return cached or stem_separation.separate(file_path, key=key)
 
 
+def accompaniment_share(paths):
+    """Fraction of the song's energy in the accompaniment stems (0-1)."""
+    import soundfile as sf
+
+    energy = {}
+    for name, path in paths.items():
+        samples, _rate = sf.read(str(path), dtype="float32")
+        energy[name] = float(np.mean(np.square(samples))) if samples.size else 0.0
+    total = sum(energy.values())
+    if total <= 0:
+        return 0.0
+    return sum(energy.get(name, 0.0) for name in ACCOMPANIMENT_STEMS) / total
+
+
 def chords_for_file(file_path, beats=None, downbeats=None, sr=22050):
-    """Chords from the file's stems, or None when stems are not used."""
+    """Chords from the file's stems, or None to use the mix instead."""
     import librosa
 
     paths = stems_for_chords(file_path)
     if not paths or "bass" not in paths:
+        return None
+    share = accompaniment_share(paths)
+    if share < MIN_ACCOMPANIMENT_SHARE:
+        print(
+            f"Accompaniment stems hold {share:.1%} of the song; "
+            "reading chords from the mix instead"
+        )
         return None
 
     def load(name):
