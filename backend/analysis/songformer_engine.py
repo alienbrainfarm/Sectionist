@@ -26,12 +26,18 @@ import numpy as np
 
 from .base import Analyzer
 from .calibration import SoftmaxRegression, apply_calibration, reduce_probabilities
+from .chunking import chunk_bounds, core_bounds, trim_segments
 from .device import resolve_device
 from .librosa_engine import LibrosaAnalyzer
 from .sections import finalize_sections, prepare_segments, snap_boundaries
 
 SAMPLE_RATE = 24000
 MODEL_DIR_ENV = "SECTIONIST_MODEL_DIR"
+
+# MPS is ~3x faster than CPU until the input gets long, then it swaps and loses
+# to the CPU. Long tracks are therefore processed in overlapping windows on MPS.
+MPS_CHUNK_SECONDS = 90.0
+MPS_CHUNK_OVERLAP = 20.0
 LABEL_MODEL_ENV = "SECTIONIST_LABEL_MODEL"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -78,6 +84,24 @@ def songformer_available():
         return False
     directory = model_dir()
     return directory.is_dir() and (directory / "config.json").exists()
+
+
+def _release_accelerator_cache():
+    """Drop cached accelerator allocations between windows.
+
+    MPS keeps freed blocks cached. Across several windows on a memory-tight
+    machine that grows until the process swaps, which turns a 26-second window
+    into minutes.
+    """
+    try:
+        import torch
+
+        if torch.cuda.is_available() and torch.cuda.is_initialized():
+            torch.cuda.empty_cache()
+        if torch.backends.mps.is_available() and torch.backends.mps.is_initialized():
+            torch.mps.empty_cache()
+    except Exception:
+        pass
 
 
 def _softmax(logits):
@@ -190,15 +214,77 @@ class SongFormerAnalyzer(Analyzer):
     def _model(self):
         return _load_model(self.directory, self.device)
 
+    def _infer_chunked(self, audio, model, id_to_label):
+        """Run the model over overlapping windows and stitch the results."""
+        import numpy as np
+        import torch
+
+        duration = len(audio) / SAMPLE_RATE
+        bounds = chunk_bounds(duration, MPS_CHUNK_SECONDS, MPS_CHUNK_OVERLAP)
+
+        segments = []
+        totals = None
+        counts = None
+        frame_rate = None
+
+        for index, (start, end) in enumerate(bounds):
+            chunk = torch.from_numpy(
+                audio[int(start * SAMPLE_RATE) : int(end * SAMPLE_RATE)]
+            ).to(self.device)
+
+            with _inference_lock:
+                _capture.clear()
+                with torch.inference_mode():
+                    predicted = model(chunk)
+                logits = _capture.get("function_logits")
+                frame_rate = _capture.get("frame_rate") or frame_rate
+                _capture.clear()
+
+            _release_accelerator_cache()
+
+            core_start, core_end = core_bounds(
+                index, start, end, duration, MPS_CHUNK_OVERLAP
+            )
+            segments.extend(trim_segments(predicted, start, core_start, core_end))
+
+            if logits is None or not frame_rate:
+                continue
+
+            probabilities = _softmax(logits)
+            if totals is None:
+                length = int(np.ceil(duration * frame_rate)) + 2
+                totals = np.zeros((length, probabilities.shape[1]))
+                counts = np.zeros(length)
+
+            offset = int(round(start * frame_rate))
+            stop = min(len(totals), offset + len(probabilities))
+            usable = stop - offset
+            if usable > 0:
+                totals[offset:stop] += probabilities[:usable]
+                counts[offset:stop] += 1
+
+        if totals is not None:
+            counts[counts == 0] = 1.0
+            totals /= counts[:, None]
+            reduced = reduce_probabilities(totals, id_to_label)
+        else:
+            reduced = None
+
+        return segments, totals, reduced, frame_rate, id_to_label
+
     def _infer(self, file_path):
         """Run the model once and return everything derived from that run."""
         import librosa
         import torch
 
         audio, _ = librosa.load(file_path, sr=SAMPLE_RATE, mono=True)
-        tensor = torch.from_numpy(audio).to(self.device)
 
         model, id_to_label = self._model()
+
+        if self.device == "mps" and len(audio) / SAMPLE_RATE > MPS_CHUNK_SECONDS:
+            return self._infer_chunked(audio, model, id_to_label)
+
+        tensor = torch.from_numpy(audio).to(self.device)
         with _inference_lock:
             _capture.clear()
             with torch.inference_mode():
