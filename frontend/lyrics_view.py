@@ -76,6 +76,74 @@ def missing_lyrics_reason(analysis):
     return NO_VOCALS if available else NO_TRANSCRIBER
 
 
+def section_name(sections, index):
+    return str(sections[index].get("name") or f"Section {index + 1}")
+
+
+def lyrics_by_section(lines, sections):
+    """Lyrics under a ``[Section]`` header per section, in song order.
+
+    Every section gets its header, sung or not, so the text can be edited
+    freely and still be matched back to the sections for the gig sheet.
+    """
+    if not sections:
+        return format_lyrics(lines)
+    groups = [[] for _ in sections]
+    for line in lines:
+        index = _section_index(sections, float(line.get("start", 0)))
+        if index is None:  # before the first section or after the last
+            first = float(sections[0].get("start", 0))
+            index = 0 if float(line.get("start", 0)) < first else len(sections) - 1
+        groups[index].append(line)
+    blocks = []
+    for index, group in enumerate(groups):
+        body = format_lyrics(group) if group else ""
+        blocks.append(
+            f"[{section_name(sections, index)}]" + (f"\n{body}" if body else "")
+        )
+    return "\n\n".join(blocks)
+
+
+def parse_lyrics_text(text):
+    """``[(header or None, body)]`` from lyrics text with [Section] lines."""
+    blocks, header, body = [], None, []
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]") and len(stripped) > 2:
+            if header is not None or any(part.strip() for part in body):
+                blocks.append((header, "\n".join(body).strip()))
+            header, body = stripped[1:-1].strip(), []
+        else:
+            body.append(line)
+    if header is not None or any(part.strip() for part in body):
+        blocks.append((header, "\n".join(body).strip()))
+    return blocks
+
+
+def lyrics_per_section(analysis, sections):
+    """The lyrics for each section, in order, from edits if there are any.
+
+    Blocks are matched to sections by order, which survives renaming a
+    section. Text before the first header goes with the first section.
+    """
+    text = analysis.get("lyrics_text")
+    if text is None:
+        text = lyrics_by_section(analysis.get("lyrics", []), sections)
+    result = [""] * len(sections)
+    if not sections:
+        return result
+    blocks = parse_lyrics_text(text)
+    if blocks and blocks[0][0] is None:
+        preamble = blocks.pop(0)[1]
+        if blocks:
+            blocks[0] = (blocks[0][0], (preamble + "\n" + blocks[0][1]).strip())
+        else:
+            blocks = [(None, preamble)]
+    for index, (_header, body) in enumerate(blocks[: len(sections)]):
+        result[index] = body
+    return result
+
+
 def show_lyrics(dock, text, action, analysis, sections):
     """Fill the lyrics panel after an analysis and show it.
 
@@ -84,8 +152,10 @@ def show_lyrics(dock, text, action, analysis, sections):
     With no analysis (a song just opened or closed) it is only cleared.
     """
     lyrics = analysis.get("lyrics", [])
-    if lyrics:
-        text.setPlainText(format_lyrics(lyrics, sections))
+    if analysis.get("lyrics_text") is not None:
+        text.setPlainText(analysis["lyrics_text"])  # the user's edits
+    elif lyrics:
+        text.setPlainText(lyrics_by_section(lyrics, sections))
     elif analysis.get("sections"):
         text.setPlainText(missing_lyrics_reason(analysis))
     else:

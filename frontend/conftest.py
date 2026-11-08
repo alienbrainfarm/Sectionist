@@ -34,3 +34,32 @@ def qapp():
         QSettings.Format.IniFormat, QSettings.Scope.UserScope, tempfile.mkdtemp()
     )
     yield app
+
+
+@pytest.fixture(autouse=True)
+def delete_windows():
+    """Shut down and delete every window a test made.
+
+    close() only hides a window: its timers, threads and controllers stay
+    alive in C++. Left to pile up across the suite they crashed Qt (a
+    segfault on macOS once enough window tests had run).
+    """
+    yield
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        return
+    from PyQt6.QtCore import QCoreApplication, QEvent
+
+    # Deliver anything still queued (a worker's result, say) while its
+    # receivers exist, then shut down and delete.
+    app.processEvents()
+    for widget in app.topLevelWidgets():
+        shutdown = getattr(widget, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
+        widget.close()
+        widget.deleteLater()
+    app.processEvents()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

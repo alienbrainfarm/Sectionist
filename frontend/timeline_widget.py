@@ -68,6 +68,9 @@ class TimelineWidget(QWidget):
         # Shown when there is a duration but no sections yet.
         self.placeholder_text = ""
         self.cycle = None  # CycleRegion drawn in the ruler
+        # Locked parts take no edits; clicking to seek and looping still work.
+        self.sections_locked = False
+        self.chords_locked = False
         self.cycle_drag = CycleDrag()
 
         # For section editing
@@ -121,6 +124,8 @@ class TimelineWidget(QWidget):
 
     def get_chord_boundary(self, x, tolerance=6):
         """Index of the boundary between chord ``i`` and ``i+1`` near ``x``."""
+        if self.chords_locked:
+            return -1
         return chord_boundary_at(self.chords, self.duration, self.width(), x, tolerance)
 
     def _format_drag_time(self, timestamp):
@@ -170,7 +175,7 @@ class TimelineWidget(QWidget):
 
     def start_rename_chord(self, chord_idx):
         """Ask for a new chord name and emit the change."""
-        if chord_idx < 0 or chord_idx >= len(self.chords):
+        if self.chords_locked or not 0 <= chord_idx < len(self.chords):
             return
         current = str(self.chords[chord_idx].get("name", ""))
         name, ok = QInputDialog.getText(
@@ -188,6 +193,7 @@ class TimelineWidget(QWidget):
         menu = QMenu(self)
         rename_action = QAction(f"Rename '{name}'", self)
         rename_action.triggered.connect(lambda: self.start_rename_chord(index))
+        rename_action.setEnabled(not self.chords_locked)
         menu.addAction(rename_action)
         menu.exec(event.globalPos())
 
@@ -278,7 +284,7 @@ class TimelineWidget(QWidget):
 
     def get_resize_mode(self, x, section_idx):
         """Determine if mouse is near section edge for resizing."""
-        if section_idx < 0 or section_idx >= len(self.sections):
+        if self.sections_locked or not 0 <= section_idx < len(self.sections):
             return None
 
         section = self.sections[section_idx]
@@ -494,7 +500,7 @@ class TimelineWidget(QWidget):
 
     def start_rename_section(self, section_idx):
         """Start renaming a section."""
-        if section_idx < 0 or section_idx >= len(self.sections):
+        if self.sections_locked or not 0 <= section_idx < len(self.sections):
             return
 
         current_name = self.sections[section_idx].get("name", "Section")
@@ -529,6 +535,9 @@ class TimelineWidget(QWidget):
             menu.addAction(rename_action)
 
             menu.addSeparator()
+            # Locked: only looping (added below) stays available.
+            for action in menu.actions():
+                action.setEnabled(not self.sections_locked)
 
             # Join with next section (if not the last section)
             if section_idx < len(self.sections) - 1:
@@ -536,6 +545,7 @@ class TimelineWidget(QWidget):
                 join_action.triggered.connect(
                     lambda: self.section_joined.emit(section_idx)
                 )
+                join_action.setEnabled(not self.sections_locked)
                 menu.addAction(join_action)
 
             section = self.sections[section_idx]
@@ -552,6 +562,7 @@ class TimelineWidget(QWidget):
             split_action.triggered.connect(
                 lambda: self.split_section_at_position(section_idx, x)
             )
+            split_action.setEnabled(not self.sections_locked)
             menu.addAction(split_action)
 
             # Show context menu
@@ -559,7 +570,7 @@ class TimelineWidget(QWidget):
 
     def split_section_at_position(self, section_idx, x_position):
         """Split a section at the given x position (middle if x_position is None)."""
-        if section_idx < 0 or section_idx >= len(self.sections):
+        if self.sections_locked or not 0 <= section_idx < len(self.sections):
             return
 
         section = self.sections[section_idx]

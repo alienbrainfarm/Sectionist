@@ -163,8 +163,13 @@ def test_modules_stay_reviewably_sized():
         "stem_lanes.py": 400,
         "stem_player.py": 260,
         "cycle.py": 300,
+        "song_edits.py": 250,
+        "mix_export.py": 220,
+        "gig_sheet.py": 260,
+        "controllers.py": 100,
+        "lyrics_view.py": 220,
         "stems_client.py": 250,
-        "stems_controller.py": 220,
+        "stems_controller.py": 250,
     }
 
     oversized = {}

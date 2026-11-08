@@ -312,7 +312,8 @@ def test_stems_take_over_playback_and_hand_it_back(window):
     window.stems.use_original()
     assert window.audio_player is original
     assert not window.stem_lanes.has_stems
-    assert window.timeline_gutter.isHidden()
+    assert not window.timeline_gutter.isHidden()  # lane names and locks stay
+    assert window.timeline_gutter.width() == 36  # just the locks again
 
 
 def test_split_button_and_menu_follow_the_song(window):

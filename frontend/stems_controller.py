@@ -32,6 +32,7 @@ class StemsController(QObject):
         self.original_player = window.audio_player
         self.stem_player = StemPlayer(stream_factory)
         self.worker = None
+        self.retired = []  # finished with, but maybe still running
         self.automatic = False  # fetched after analysis rather than asked for
 
         self.button = QPushButton("Split stems")
@@ -129,6 +130,18 @@ class StemsController(QObject):
             for signal in (worker.progress, worker.finished, worker.error):
                 signal.disconnect()
             worker.requestInterruption()
+            self._retire(worker)
+
+    def _retire(self, worker):
+        """Hold on to a worker until its thread has really ended.
+
+        Its signals arrive before run() returns, and a cancelled download
+        keeps going until its next check. Dropping the last reference to a
+        running QThread destroys it mid-run, which crashes Qt.
+        """
+        self.retired = [w for w in self.retired if not w.isFinished()]
+        if worker is not None and not worker.isFinished():
+            self.retired.append(worker)
 
     def _current(self):
         return self.sender() is self.worker
@@ -147,6 +160,7 @@ class StemsController(QObject):
         if not self._current():
             return
         asked = self.worker.model is not None
+        self._retire(self.worker)
         self.worker = None
         self.button.setEnabled(True)
         self.button.setText("Split stems")
@@ -162,6 +176,7 @@ class StemsController(QObject):
         if not self._current():
             return
         asked = self.worker.model is not None
+        self._retire(self.worker)
         self.worker = None
         self.button.setEnabled(True)
         self.button.setText("Split stems")
@@ -194,7 +209,7 @@ class StemsController(QObject):
         self.lanes.set_stems(stem_set, duration)
         self.lanes.set_sections(self.window.timeline.sections)
         self.lanes.set_position(self.window.timeline.current_position)
-        self.gutter.setVisible(True)
+        self.gutter.set_compact(False)  # line the timeline up with the lanes
         self._swap(self.stem_player)
 
     def use_original(self):
@@ -202,7 +217,7 @@ class StemsController(QObject):
         self.stem_player.stop()
         self.stem_player.close()
         self.lanes.clear()
-        self.gutter.setVisible(False)
+        self.gutter.set_compact(True)
 
     def clear_cache(self):
         """Free the disk space downloaded stems use; they download again."""
@@ -211,5 +226,8 @@ class StemsController(QObject):
 
     def shutdown(self):
         self.cancel()
+        for worker in self.retired:
+            worker.wait(3000)
+        self.retired = []
         self.stem_player.stop()
         self.stem_player.close()
