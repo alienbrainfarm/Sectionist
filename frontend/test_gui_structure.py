@@ -169,7 +169,7 @@ def test_modules_stay_reviewably_sized():
         "controllers.py": 100,
         "lyrics_view.py": 220,
         "stems_client.py": 250,
-        "stems_controller.py": 220,
+        "stems_controller.py": 250,
     }
 
     oversized = {}

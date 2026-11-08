@@ -196,12 +196,18 @@ def test_render_mix_sums_the_chosen_stems_over_the_range():
     assert mix[len(mix) // 2, 0] == pytest.approx(5000 / 32768)
     assert mix[0, 0] == 0.0  # faded in, no click at the cut
 
+    whole = render_mix(stem_set, ["drums"])
+    assert whole[0, 0] == pytest.approx(2000 / 32768)  # song start: untouched
+
     loud = render_mix(stem_set, stem_set.names)  # 10000 * 4 would clip
     assert np.abs(loud).max() <= 0.98 + 1e-6
 
 
 def test_mixes_write_as_mp3_and_wav(tmp_path):
     import soundfile as sf
+
+    # An existing checkout may predate lameenc in requirements.txt.
+    pytest.importorskip("lameenc")
 
     from mix_export import write_mix
 
@@ -298,3 +304,51 @@ def test_gig_sheet_exports_a_pdf(window, tmp_path):
     data = (tmp_path / "sheet.pdf").read_bytes()
     assert path and data.startswith(b"%PDF") and len(data) > 1000
     assert window.gig_sheet.print_action.shortcut().toString() == "Ctrl+P"
+
+
+def test_an_export_finishing_after_the_window_closed_is_ignored(qapp, monkeypatch):
+    # A late result used to call into the deleted window from a lambda, and
+    # PyQt aborts the whole process on an exception in a slot.
+    import stems_controller
+    from main_window import SectionistMainWindow
+    from mix_export import ExportWorker
+    from test_stems import make_set
+
+    monkeypatch.setattr(stems_controller, "playback_available", lambda: False)
+    window = SectionistMainWindow()
+    exporter = window.mix_export
+    worker = ExportWorker(make_set(0.1), ["drums"], None, None, "unused.xyz")
+    worker.failed.connect(exporter.export_failed)  # 'unused.xyz' fails to write
+    worker.start()
+    worker.wait(5000)
+    window.deleteLater()
+    from PyQt6.QtCore import QCoreApplication, QEvent
+
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()  # the queued result arrives with no window: no crash
+
+
+def test_a_cancelled_stem_download_is_kept_until_it_ends(qapp, monkeypatch):
+    from PyQt6.QtCore import QThread, pyqtSignal
+
+    import stems_controller
+    from main_window import SectionistMainWindow
+
+    class SlowWorker(QThread):
+        progress = pyqtSignal(float, str)
+        finished = pyqtSignal(object)
+        error = pyqtSignal(str)
+        model = "htdemucs"
+
+        def run(self):
+            self.msleep(300)
+
+    monkeypatch.setattr(stems_controller, "playback_available", lambda: False)
+    window = SectionistMainWindow()
+    worker = SlowWorker()
+    window.stems.start(worker)
+    del worker
+    window.stems.cancel()  # e.g. another song was opened mid-download
+    assert len(window.stems.retired) == 1  # still referenced while it runs
+    window.stems.shutdown()  # waits for it rather than destroying it
+    assert window.stems.retired == []

@@ -29,6 +29,7 @@ except ImportError:
     from theme import BORDER, PLAYHEAD, SURFACE, TEXT, TEXT_DIM, ui_font
 
 GUTTER = 132
+COMPACT_GUTTER = 36  # just the lane locks, while there are no stem lanes
 LANE_HEIGHT = 46
 
 STEM_COLORS = {
@@ -351,16 +352,22 @@ class StemLanes(QWidget):
 class TimelineGutter(QWidget):
     """Lane names and their locks to the left of the timeline.
 
-    Its width matches the stem lanes' controls, so every lane shares one
-    time axis.
+    With stems shown it matches the stem lanes' controls, so every lane
+    shares one time axis. Without them it shrinks to a column of locks, so
+    a narrow window keeps its width for the timeline.
     """
 
     def __init__(self, timeline, parent=None):
         super().__init__(parent)
         self.timeline = timeline
-        self.setFixedWidth(GUTTER)
         self.sections_lock = lock_button("sections", self)
         self.chords_lock = lock_button("chords", self)
+        self.set_compact(True)
+
+    def set_compact(self, compact):
+        self.compact = compact
+        self.setFixedWidth(COMPACT_GUTTER if compact else GUTTER)
+        self.update()
 
     def lanes(self):
         """(sections band, chord lane or None) in this widget's coordinates."""
@@ -373,11 +380,13 @@ class TimelineGutter(QWidget):
 
     def paintEvent(self, _event):
         band, lane = self.lanes()
-        x = GUTTER - 36
+        x = (COMPACT_GUTTER - 24) // 2 if self.compact else GUTTER - 36
         self.sections_lock.move(int(x), int(band.center().y() - 12))
         self.chords_lock.setVisible(lane is not None)
         if lane is not None:
             self.chords_lock.move(int(x), int(lane.center().y() - 12))
+        if self.compact:
+            return  # the locks' tooltips name their lanes
         painter = QPainter(self)
         painter.setPen(QColor(TEXT_DIM))
         painter.setFont(ui_font(9))

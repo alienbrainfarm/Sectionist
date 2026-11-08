@@ -709,11 +709,11 @@ class SectionistMainWindow(QMainWindow):
         except Exception:
             pass
 
-        try:
-            self.audio_player.stop()
-            self.addons.shutdown()
-        except Exception:
-            pass
+        for step in (self.audio_player.stop, self.addons.shutdown):
+            try:
+                step()
+            except Exception:
+                pass
 
         worker = getattr(self, "analysis_worker", None)
         if worker is not None and worker.isRunning():

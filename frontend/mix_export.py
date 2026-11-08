@@ -32,11 +32,15 @@ def render_mix(stem_set, names, start=None, end=None):
     peak = float(np.abs(mix).max()) if mix.size else 0.0
     if peak > HEADROOM:
         mix *= HEADROOM / peak
+    # Fade only where the export cuts into the song: the song's own start and
+    # end are left exactly as they are.
     fade = min(int(FADE_SECONDS * rate), len(mix) // 2)
     if fade:
         ramp = np.linspace(0.0, 1.0, fade, dtype=np.float32)[:, None]
-        mix[:fade] *= ramp
-        mix[-fade:] *= ramp[::-1]
+        if first > 0:
+            mix[:fade] *= ramp
+        if last < stem_set.frames:
+            mix[-fade:] *= ramp[::-1]
     return mix
 
 
@@ -158,13 +162,18 @@ class MixExporter(QObject):
         start, end = (region.start, region.end) if region else (None, None)
         self.window.set_status(f"Exporting {Path(path).name}…")
         self.worker = ExportWorker(stem_set, names, start, end, path)
-        self.worker.done.connect(
-            lambda saved: self.window.set_status(f"Exported {Path(saved).name}")
-        )
-        self.worker.failed.connect(
-            lambda message: self.window.set_status(f"Export failed: {message}")
-        )
+        # Methods, not lambdas: PyQt drops a method's connection when this
+        # object is destroyed, so a result arriving after the window closed
+        # is ignored instead of calling into a deleted window (which aborts).
+        self.worker.done.connect(self.exported)
+        self.worker.failed.connect(self.export_failed)
         self.worker.start()
+
+    def exported(self, path):
+        self.window.set_status(f"Exported {Path(path).name}")
+
+    def export_failed(self, message):
+        self.window.set_status(f"Export failed: {message}")
 
     def shutdown(self):
         if self.worker is not None and self.worker.isRunning():
