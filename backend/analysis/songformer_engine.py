@@ -221,8 +221,9 @@ class SongFormerAnalyzer(Analyzer):
         return reduced, frame_rate
 
     def analyze(self, file_path: str) -> dict:
-        # Tempo, key and chords still come from the existing pipeline.
-        result = self._baseline.analyze(file_path)
+        # Tempo, key and chords still come from the existing pipeline; its
+        # segmentation is skipped because the model replaces it.
+        result = self._baseline.analyze(file_path, include_sections=False)
 
         segments, probabilities, reduced, frame_rate, id_to_label = self._infer(
             file_path

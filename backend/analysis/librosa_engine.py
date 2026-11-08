@@ -18,11 +18,16 @@ class LibrosaAnalyzer(Analyzer):
 
     name = "librosa"
 
-    def analyze(self, file_path: str) -> dict:
+    def analyze(self, file_path: str, include_sections: bool = True) -> dict:
+        """Analyse a file.
+
+        ``include_sections=False`` skips the heuristic segmentation, which is
+        wasted work when another engine will provide the sections.
+        """
         # Imported lazily: example.py loads librosa and prints a banner.
         from example import analyze_audio_file
 
-        result = analyze_audio_file(file_path)
+        result = analyze_audio_file(file_path, include_sections=include_sections)
         result.setdefault("engine", self.name)
         self.add_beats(file_path, result)
         return result

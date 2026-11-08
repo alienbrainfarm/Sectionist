@@ -470,7 +470,7 @@ def detect_chords(y, sr, hop_length=2048, beats=None):
     return _detect_chords(y, sr, hop_length=hop_length, beats=beats)
 
 
-def analyze_audio_file(file_path):
+def analyze_audio_file(file_path, include_sections=True):
     """
     Analyze an audio file and extract musical information including intelligent
     song structure segmentation and chord progressions.
@@ -531,8 +531,10 @@ def analyze_audio_file(file_path):
     key_changes = [kc for kc in key_changes if kc["timestamp"] <= duration]
     print(f"Key changes after duration filter: {len(key_changes)}")
 
-    # Advanced song structure segmentation using music information retrieval
-    sections = analyze_song_structure(y, sr)
+    # Advanced song structure segmentation using music information retrieval.
+    # Skipped when a model engine will supply its own sections, since the
+    # result would be discarded.
+    sections = analyze_song_structure(y, sr) if include_sections else []
 
     # Chord detection and mapping with consistent hop_length
     beat_times = (
