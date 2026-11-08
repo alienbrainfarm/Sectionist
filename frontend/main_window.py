@@ -423,13 +423,17 @@ class SectionistMainWindow(QMainWindow):
             name = section.get("name", "Unknown")
             start = section.get("start", 0)
             end = section.get("end", 0)
-            confidence = section.get("confidence", 0)
+            confidence = section.get("confidence")
 
             sections_text += f"{i}. {name}\n"
             sections_text += (
                 f"   Time: {self.format_time(start)} - {self.format_time(end)}\n"
             )
-            sections_text += f"   Confidence: {confidence:.1%}\n\n"
+            if confidence is None:
+                # Model-based engines do not report per-section confidence.
+                sections_text += "   Confidence: —\n\n"
+            else:
+                sections_text += f"   Confidence: {confidence:.1%}\n\n"
 
         self.sections_text.setPlainText(sections_text)
 
@@ -438,7 +442,8 @@ class SectionistMainWindow(QMainWindow):
         details_text += f"Duration: {self.format_time(analysis.get('duration', 0))}\n"
         details_text += f"Tempo: {analysis.get('tempo', 0):.1f} BPM\n"
         details_text += f"Key: {analysis.get('key', 'Unknown')}\n"
-        details_text += f"Beats Detected: {analysis.get('beats_detected', 0)}\n\n"
+        details_text += f"Beats Detected: {analysis.get('beats_detected', 0)}\n"
+        details_text += f"Engine: {analysis.get('engine', 'librosa')}\n\n"
 
         # Key changes
         key_changes = analysis.get("key_changes", [])
