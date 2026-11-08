@@ -2,8 +2,8 @@
 """
 Sectionist Backend HTTP Server
 
-This Flask server provides REST API endpoints for the Sectionist SwiftUI frontend
-to communicate with the Python audio analysis backend.
+This Flask server provides REST API endpoints for the Sectionist desktop
+frontend to communicate with the Python audio analysis backend.
 
 Endpoints:
 - POST /analyze - Analyze an audio file and return structured results
@@ -86,7 +86,7 @@ def analyze_audio():
             print(f"Analyzing file: {temp_path}")
             results = analyze_audio_file(temp_path)
 
-            # Convert analysis results to the format expected by SwiftUI frontend
+            # Convert analysis results to the format expected by the frontend
             response_data = {
                 "success": True,
                 "file_name": filename,
@@ -142,8 +142,8 @@ def main():
         print("❌ librosa not available. Run: pip install -r requirements.txt")
         sys.exit(1)
 
-    port = 5000
-    host = "127.0.0.1"
+    host = os.environ.get("SECTIONIST_HOST", "127.0.0.1")
+    port = int(os.environ.get("SECTIONIST_PORT", "5000"))
 
     print(f"🚀 Starting server on http://{host}:{port}")
     print("📡 Available endpoints:")
@@ -156,8 +156,13 @@ def main():
     print(f"   curl -X POST -F 'audio=@/path/to/song.mp3' http://{host}:{port}/analyze")
     print()
 
-    # Run the Flask development server
-    app.run(host=host, port=port, debug=True)
+    # Run the Flask development server. Debug mode (reloader + interactive
+    # debugger) is opt-in via SECTIONIST_DEBUG=1 so a normal run behaves like a
+    # real local service.
+    debug = os.environ.get("SECTIONIST_DEBUG") == "1"
+    if debug:
+        print("🐛 Debug mode enabled (SECTIONIST_DEBUG=1)")
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":

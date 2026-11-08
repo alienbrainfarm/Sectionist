@@ -1,6 +1,6 @@
 # Sectionist Python Frontend
 
-This is a cross-platform Python frontend for Sectionist that replaces the Swift/SwiftUI version. It provides the same functionality but works on Windows, macOS, and Linux.
+This is the cross-platform Python frontend for Sectionist. It works on Windows, macOS, and Linux.
 
 ## Features
 
@@ -11,13 +11,12 @@ This is a cross-platform Python frontend for Sectionist that replaces the Swift/
 - ✅ **Timeline visualization with clickable sections**
 - ✅ **Analysis results display**
 - ✅ **Professional native-looking interface**
-- ✅ **No Swift/Xcode dependency**
 
 ## Technology Stack
 
 - **GUI Framework**: PyQt6 (native widgets, cross-platform)
-- **Audio Playback**: pygame (simple, cross-platform)
-- **Backend Communication**: requests (reuses existing HTTP API)
+- **Audio Playback**: python-vlc (requires the VLC media player / libvlc library)
+- **Backend Communication**: requests (reuses the HTTP API)
 - **Audio Metadata**: mutagen (file information)
 
 ## Quick Start
@@ -25,13 +24,14 @@ This is a cross-platform Python frontend for Sectionist that replaces the Swift/
 ### Prerequisites
 
 - Python 3.8+
+- VLC media player installed (provides the `libvlc` library used by python-vlc)
 - Backend server running (see `../backend/start_server.sh`)
 
 ### Installation
 
 1. **Set up the Python frontend**:
    ```bash
-   cd frontend-python
+   cd frontend
    ./setup.sh
    ```
 
@@ -43,7 +43,7 @@ This is a cross-platform Python frontend for Sectionist that replaces the Swift/
 
 3. **Run the Python frontend**:
    ```bash
-   cd frontend-python
+   cd frontend
    source venv/bin/activate
    python sectionist_gui.py
    ```
@@ -71,7 +71,6 @@ This is a cross-platform Python frontend for Sectionist that replaces the Swift/
 ## Supported Audio Formats
 
 - MP3, WAV, AIFF, M4A, FLAC, OGG, AAC
-- Same formats as the original Swift version
 
 ## Architecture
 
@@ -88,24 +87,15 @@ This approach:
 - ✅ Reuses the existing, working backend
 - ✅ Maintains the same analysis quality
 - ✅ Provides cross-platform compatibility
-- ✅ Eliminates Swift/Xcode dependency
 
-## Differences from Swift Version
-
-### Advantages
-- ✅ Cross-platform (Windows, macOS, Linux)
-- ✅ Single language ecosystem (all Python)
-- ✅ No Xcode dependency
-- ✅ Easier deployment and distribution
-- ✅ Better Windows 11 support
+## Limitations and Future Work
 
 ### Current Limitations
-- ⚠️ Audio seeking is limited (pygame limitation)
+- ⚠️ Audio playback requires the VLC media player (libvlc) to be installed
 - ⚠️ No drag-to-rearrange sections yet
 - ⚠️ No section editing UI yet
 
 ### Future Enhancements
-- 🔜 Advanced audio playback with seeking (using different audio library)
 - 🔜 Section editing and manual adjustment
 - 🔜 Enhanced timeline visualization
 - 🔜 Export functionality
@@ -130,10 +120,12 @@ pyinstaller --onefile --windowed sectionist_gui.py
 
 ### Adding New Features
 
-1. The main application is in `sectionist_gui.py`
-2. Add new widgets by subclassing PyQt6 widgets
-3. Use the existing `AnalysisWorker` for backend communication
-4. Follow PyQt6 best practices for threading and signals
+1. `sectionist_gui.py` is the entry point; the main window lives in `main_window.py`
+2. Timeline drawing lives in `timeline_widget.py`
+3. Audio playback is handled by `audio_player.py` (python-vlc)
+4. `analysis_worker.py` handles backend communication
+5. Add new widgets by subclassing PyQt6 widgets
+6. Follow PyQt6 best practices for threading and signals
 
 ## Troubleshooting
 
@@ -147,34 +139,13 @@ pip install PyQt6
 - Check that `http://127.0.0.1:5000/health` returns a response
 
 ### Audio playback issues
-- Make sure pygame is installed: `pip install pygame`
+- Make sure the VLC media player is installed so `libvlc` is available to python-vlc
+- On Linux, install the `libvlc5` and `libvlccore9` packages
 - Check that your audio file is in a supported format
 
 ### Linux-specific issues
 - Install system audio libraries: `sudo apt-get install libasound2-dev`
 - For PyQt6: `sudo apt-get install python3-pyqt6`
+- For playback: `sudo apt-get install libvlc5 libvlccore9`
 
-## Comparison with Swift Version
-
-| Feature | Swift Version | Python Version |
-|---------|---------------|----------------|
-| Platform Support | macOS only | Windows, macOS, Linux |
-| Development Setup | Xcode required | Python + pip |
-| Audio Playback | AVFoundation | pygame |
-| GUI Framework | SwiftUI | PyQt6 |
-| Backend Communication | HTTP API | HTTP API (same) |
-| File Drag & Drop | ✅ | ✅ |
-| Timeline Visualization | ✅ | ✅ |
-| Section Editing | ✅ | 🔜 Planned |
-| Audio Seeking | ✅ | ⚠️ Limited |
-| Native Look & Feel | ✅ | ✅ |
-
-## Migration Benefits
-
-1. **Cross-Platform**: Works on Windows 11, solving the original issue
-2. **Unified Ecosystem**: Everything is Python, easier maintenance
-3. **No Platform Lock-in**: Not dependent on Apple's development tools
-4. **Easier Distribution**: Python packages vs. macOS app bundles
-5. **Community**: Larger Python GUI development community
-
-This Python frontend provides a viable alternative to the Swift version while maintaining the same core functionality and improving cross-platform compatibility.
+This Python frontend provides cross-platform audio analysis with the same core functionality on Windows, macOS, and Linux.

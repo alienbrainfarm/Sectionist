@@ -6,7 +6,6 @@ This script tests the improved segmentation algorithm against synthetic test aud
 with known section boundaries.
 """
 
-import sys
 import numpy as np
 import soundfile as sf
 from example import analyze_audio_file
@@ -125,11 +124,7 @@ def test_segmentation():
         print(f"❌ Error during analysis: {e}")
         raise  # Re-raise for pytest to catch
 
-    return True
-
-    return True
-
 
 if __name__ == "__main__":
-    success = test_segmentation()
-    sys.exit(0 if success else 1)
+    test_segmentation()
+    print("✅ Segmentation test passed")

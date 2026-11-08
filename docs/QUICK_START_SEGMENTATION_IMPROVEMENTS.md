@@ -57,7 +57,7 @@ ollama run mistral:7b "Analyze this music pattern: high energy at 0-20s, low ene
 
 ```bash
 cd backend/
-python3 test_advanced_segmentation.py
+python3 benchmark_advanced_segmentation.py
 ```
 
 Current baseline: Look for lines like:

@@ -25,7 +25,11 @@ import numpy as np
 
 # Import improved segmentation module
 try:
-    from improved_segmentation import improved_analyze_song_structure, post_process_sections
+    from improved_segmentation import (
+        improved_analyze_song_structure,
+        post_process_sections,
+    )
+
     IMPROVED_SEGMENTATION_AVAILABLE = True
     print("✅ Improved segmentation module loaded")
 except ImportError:
@@ -58,23 +62,25 @@ def analyze_song_structure(y, sr):
     Returns:
         list: List of detected sections with labels and timestamps
     """
-    
+
     # Use improved segmentation if available
     if IMPROVED_SEGMENTATION_AVAILABLE:
         try:
             print("🚀 Using improved segmentation algorithm...")
             sections = improved_analyze_song_structure(y, sr)
-            
+
             # Apply post-processing to refine results
-            sections = post_process_sections(sections, min_section_length=5.0, merge_similar=True)
-            
+            sections = post_process_sections(
+                sections, min_section_length=5.0, merge_similar=True
+            )
+
             print(f"✅ Improved analysis completed, {len(sections)} sections detected")
             return sections
-            
+
         except Exception as e:
             print(f"⚠️  Improved segmentation failed: {e}")
             print("   Falling back to original algorithm...")
-    
+
     # Fallback to original algorithm
     print("🔄 Using original segmentation algorithm...")
     return analyze_song_structure_original(y, sr)
@@ -347,12 +353,16 @@ def detect_key_and_changes(y, sr, chroma=None, hop_length=2048):
     detected_key = key_names[overall_key_idx]
 
     # Detect key changes by analyzing segments
-    key_changes = detect_key_changes_in_segments(chroma, key_profiles, key_names, sr, hop_length)
+    key_changes = detect_key_changes_in_segments(
+        chroma, key_profiles, key_names, sr, hop_length
+    )
 
     return detected_key, key_changes
 
 
-def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr, hop_length=2048):
+def detect_key_changes_in_segments(
+    chroma, key_profiles, key_names, sr, hop_length=2048
+):
     """
     Detect key changes by analyzing audio in segments.
 
@@ -386,10 +396,13 @@ def detect_key_changes_in_segments(chroma, key_profiles, key_names, sr, hop_leng
         end_frame = min(start_frame + segment_size, chroma.shape[1])
         segment_chroma = chroma[:, start_frame:end_frame]
 
-        # Debug: log segment processing  
+        # Debug: log segment processing
         if len(key_changes) == 0 or len(key_changes) < 3:  # Only log first few
             timestamp_debug = start_frame * hop_length / sr
-            print(f"  Processing segment {len(key_changes)+1}: frames {start_frame}-{end_frame}, timestamp {timestamp_debug:.2f}s")
+            print(
+                f"  Processing segment {len(key_changes)+1}: frames "
+                f"{start_frame}-{end_frame}, timestamp {timestamp_debug:.2f}s"
+            )
 
         # Calculate mean chroma for this segment
         segment_chroma_mean = np.mean(segment_chroma, axis=1)
@@ -638,9 +651,9 @@ def analyze_audio_file(file_path):
     # Enhanced key estimation using chroma features with consistent hop_length
     chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
     detected_key, key_changes = detect_key_and_changes(y, sr, chroma, hop_length)
-    
+
     # Safeguard: Filter out any key changes beyond the actual audio duration
-    key_changes = [kc for kc in key_changes if kc['timestamp'] <= duration]
+    key_changes = [kc for kc in key_changes if kc["timestamp"] <= duration]
     print(f"Key changes after duration filter: {len(key_changes)}")
 
     # Advanced song structure segmentation using music information retrieval
@@ -648,9 +661,13 @@ def analyze_audio_file(file_path):
 
     # Chord detection and mapping with consistent hop_length
     chords = detect_chords(y, sr, hop_length)
-    
-    # Safeguard: Filter out any chords beyond the actual audio duration  
-    chords = [chord for chord in chords if chord['start'] <= duration and chord['end'] <= duration]
+
+    # Safeguard: Filter out any chords beyond the actual audio duration
+    chords = [
+        chord
+        for chord in chords
+        if chord["start"] <= duration and chord["end"] <= duration
+    ]
     print(f"Chords after duration filter: {len(chords)}")
 
     return {

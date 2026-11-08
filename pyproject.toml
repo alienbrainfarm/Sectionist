@@ -1,0 +1,18 @@
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+extend-exclude = '''
+/(
+    venv
+  | \.git
+  | __pycache__
+)/
+'''
+
+[tool.coverage.run]
+omit = [
+    "*/venv/*",
+    "*/test_*.py",
+    "*/benchmark_*.py",
+    "*/smoke_test.py",
+]

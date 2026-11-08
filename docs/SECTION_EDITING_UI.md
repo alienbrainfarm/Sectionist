@@ -13,7 +13,7 @@ This document describes the section labeling and editing capabilities for the Se
 
 ### 🔜 Planned Features (Future Development)
 
-The following features were implemented in the archived Swift frontend and are planned for the Python frontend:
+The following features are planned for the Python/PyQt6 frontend:
 
 #### 1. Enhanced Section Editing Interface
 - **Full-featured section editor** with comprehensive editing capabilities
@@ -64,9 +64,9 @@ Timeline                                [Edit Sections] [Edit Mode ○] [Re-anal
 ## Technical Implementation
 
 ### Data Flow
-1. **Backend Analysis** → Immutable `SongSection` objects (isUserEdited: false)
-2. **User Edits** → New `SongSection` via `editedCopy()` (isUserEdited: true)
-3. **UI Updates** → Binding updates trigger view refreshes
+1. **Backend Analysis** → Immutable section records from the JSON response
+2. **User Edits** → New section records copied from the originals and marked as user-edited
+3. **UI Updates** → Qt signals trigger timeline and editor refreshes
 4. **Persistence** → Ready for future export/save functionality
 
 ### Key Design Decisions
@@ -77,6 +77,8 @@ Timeline                                [Edit Sections] [Edit Mode ○] [Re-anal
 - **Validation** ensures time boundaries stay within song duration
 
 ## Usage Examples
+
+The workflows below describe the planned editing experience.
 
 ### Adding a New Section
 1. Click "Add Section" or "Edit Sections"
@@ -96,22 +98,16 @@ Timeline                                [Edit Sections] [Edit Mode ○] [Re-anal
 - **Color coding** distinguishes section types
 
 ## Future Enhancements Ready For
-- **Drag-to-resize** section boundaries (visual indicators implemented)
+- **Drag-to-resize** section boundaries
 - **Export edited sections** to various formats
 - **Undo/redo** functionality
 - **Section templates** for common song structures
 - **Collaborative editing** features
 
-## Files Modified
-- `SectionEditingView.swift` - New comprehensive editing interface
-- `TimelineView.swift` - Enhanced with editing capabilities
-- `AnalysisService.swift` - Updated for new section model
-- `SongSection` model - Enhanced with editing support
-
 ## Testing Verified
 - ✅ Backend tests (19/19 passing)
-- ✅ Swift compilation validation
+- ✅ Frontend structure tests (headless PyQt6)
 - ✅ Data model functionality
 - ✅ Integration with existing analysis flow
 
-This implementation provides a solid foundation for manual section editing while maintaining compatibility with the existing automated analysis features.
+This approach provides a solid foundation for manual section editing while maintaining compatibility with the existing automated analysis features.

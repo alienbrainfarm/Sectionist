@@ -8,39 +8,34 @@ The CI/CD pipeline is implemented using GitHub Actions and provides automated te
 
 ## Pipeline Components
 
-### 1. Backend Testing (`test-backend`)
+### 1. Backend Testing (`backend-tests`)
 - **Runs on**: Ubuntu Latest
 - **Python versions**: 3.10, 3.11, 3.12
 - **Features**:
   - Dependency caching for faster builds
+  - Linting with Flake8 (88-character lines, configured in `.flake8`)
   - Code formatting check with Black
-  - Linting with Flake8
-  - Type checking with MyPy
   - Test execution with pytest
-  - Coverage reporting with Codecov
+  - Coverage reporting with Codecov (Python 3.11 only)
 
-### 2. Frontend Testing (`test-frontend`)
-- **Runs on**: Cross-platform (Ubuntu, Windows, macOS)
-- **Features**:
-  - Python PyQt6 application testing
-  - Frontend unit tests
-  - UI integration tests
-  - Dependency validation
-
-### 3. Code Quality (`lint-and-format`)
+### 2. Frontend Testing (`frontend-tests`)
 - **Runs on**: Ubuntu Latest
+- **Python version**: 3.11
 - **Features**:
-  - Black formatting validation
-  - Flake8 linting
-  - MyPy type checking
+  - Installation of Qt and libvlc system libraries
+  - Linting with Flake8 and formatting check with Black
+  - PyQt6 unit and integration tests
+  - Headless execution with `QT_QPA_PLATFORM=offscreen`
 
-### 4. Integration Testing (`integration-tests`)
+### 3. Integration Testing (`integration-tests`)
 - **Runs on**: Ubuntu Latest
+- **Python version**: 3.11
 - **Dependencies**: Requires backend tests to pass
 - **Features**:
   - Backend server startup testing
-  - Health endpoint validation
-  - End-to-end analysis testing
+  - Health endpoint validation (`/health`)
+  - Supported formats endpoint validation (`/formats`)
+  - End-to-end analysis testing with `backend/smoke_test.py`
 
 ## Workflows
 
@@ -49,6 +44,7 @@ The CI/CD pipeline is implemented using GitHub Actions and provides automated te
 Triggers on:
 - Push to `main` or `develop` branches
 - Pull requests to `main` or `develop` branches
+- Manual runs via `workflow_dispatch`
 
 ## Code Quality Tools
 
@@ -63,10 +59,10 @@ Triggers on:
 2. **Flake8** - Linting
    ```bash
    cd backend
-   flake8 . --max-line-length=88 --extend-ignore=E203,W503
+   flake8 .
    ```
 
-3. **MyPy** - Type checking
+3. **MyPy** - Optional local type checking (not run in CI)
    ```bash
    cd backend
    mypy .
@@ -78,18 +74,18 @@ Triggers on:
    pytest -v --cov=. --cov-report=xml --cov-report=term
    ```
 
-### SwiftUI Frontend
+### Python Frontend
 
-1. **Xcode Build**
+1. **Pytest** - Headless UI and integration tests
    ```bash
-   cd Sectionist
-   xcodebuild -project Sectionist.xcodeproj -scheme Sectionist -configuration Debug build
+   cd frontend
+   QT_QPA_PLATFORM=offscreen pytest -v
    ```
 
-2. **Xcode Tests**
+2. **System libraries** - Qt needs a rendering backend, and python-vlc needs
+   libvlc at import time:
    ```bash
-   cd Sectionist
-   xcodebuild test -project Sectionist.xcodeproj -scheme Sectionist -destination 'platform=macOS'
+   sudo apt-get install -y libgl1 libegl1 libxkbcommon0 libvlc5 libvlccore9
    ```
 
 ## Pre-commit Hooks
@@ -122,7 +118,7 @@ The project includes pre-commit hooks configuration (`.pre-commit-config.yaml`) 
    ```bash
    cd backend
    black .
-   flake8 . --max-line-length=88 --extend-ignore=E203,W503
+   flake8 .
    pytest -v --cov=.
    ```
 
@@ -140,7 +136,7 @@ The project includes pre-commit hooks configuration (`.pre-commit-config.yaml`) 
 Add these badges to your README to show build status:
 
 ```markdown
-![CI/CD Pipeline](https://github.com/alienbrainfarm/Sectionist/workflows/CI/CD%20Pipeline/badge.svg)
+![CI](https://github.com/alienbrainfarm/Sectionist/workflows/CI/badge.svg)
 [![codecov](https://codecov.io/gh/alienbrainfarm/Sectionist/branch/main/graph/badge.svg)](https://codecov.io/gh/alienbrainfarm/Sectionist)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 ```
@@ -154,7 +150,7 @@ The pipeline uses these GitHub repository secrets:
 
 1. **Dependency Caching**: Uses GitHub Actions cache to speed up dependency installation
 2. **Matrix Strategy**: Tests across multiple Python versions in parallel
-3. **Derived Data Caching**: Caches Xcode derived data for faster builds
+3. **Headless Frontend Tests**: Qt runs with `QT_QPA_PLATFORM=offscreen`, so no display server is required
 
 ## Troubleshooting
 
@@ -166,14 +162,14 @@ The pipeline uses these GitHub repository secrets:
    - Verify test data and fixtures
 
 2. **Frontend tests failing**:
-   - Check Xcode version compatibility
-   - Ensure scheme is configured for testing
-   - Verify macOS deployment target
+   - Check that Qt and libvlc system libraries are installed
+   - Ensure `QT_QPA_PLATFORM=offscreen` is set for headless runs
+   - Confirm the backend is not required for the test being run
 
 3. **Linting failures**:
    - Run `black .` to auto-format code
    - Check `flake8` output for specific violations
-   - Update type hints for MyPy errors
+   - Review `pyproject.toml` and `.flake8` for the configured 88-character line length
 
 ### Local Testing
 
@@ -184,13 +180,14 @@ Before pushing, run the full test suite locally:
 cd backend
 pip install -r requirements.txt -r requirements-dev.txt
 black --check .
-flake8 . --max-line-length=88 --extend-ignore=E203,W503
+flake8 .
 mypy .
 pytest -v --cov=.
 
-# Frontend testing (macOS only)
-cd Sectionist
-xcodebuild test -project Sectionist.xcodeproj -scheme Sectionist
+# Frontend testing (headless)
+cd frontend
+pip install -r requirements.txt
+QT_QPA_PLATFORM=offscreen pytest -v
 ```
 
 ## Contributing

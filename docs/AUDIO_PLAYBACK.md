@@ -2,66 +2,70 @@
 
 ## Overview
 
-The Sectionist app now includes full audio playback functionality that allows users to play and listen to their audio files directly within the application. This feature integrates seamlessly with the existing timeline visualization and section analysis.
+The Sectionist app includes audio playback functionality that allows users to play and listen to their audio files directly within the application. This feature integrates seamlessly with the existing timeline visualization and section analysis.
 
 ## Features
 
 ### ✅ Implemented Features
 
-- **Play/Pause Control**: Click the prominent play/pause button to start or stop audio playback
+- **Play/Pause Control**: Click the play/pause button to start, pause, or resume audio playback
 - **Timeline Synchronization**: The timeline position updates in real-time during playback
 - **Section Seeking**: Click on any song section in the timeline to jump directly to that part of the audio
-- **Skip Controls**: Skip backward or forward by 10 seconds using the dedicated skip buttons
-- **Playback Speed**: Adjust playback speed from 0.5x to 2x using the speed control menu
-- **Progress Scrubbing**: Drag the timeline slider to seek to any position in the audio
+- **Stop Control**: Stop playback and reset the position to the start
+- **Progress Scrubbing**: Drag the position slider to seek to any position in the audio
 - **Audio Format Support**: Supports all major audio formats (MP3, WAV, M4A, FLAC, AAC, etc.)
 - **Error Handling**: Clear error messages for file access issues or playback problems
 
 ### 🎯 Key Components
 
-#### AudioPlayerService.swift
-- **Purpose**: Core audio playback service using AVFoundation
+#### `frontend/audio_player.py`
+- **Purpose**: Core audio playback wrapper around **python-vlc** (requires the VLC media player / libvlc library)
 - **Key Methods**:
-  - `loadAudio(from:)` - Load an audio file for playback
-  - `togglePlayback()` - Play/pause toggle
-  - `seek(to:)` - Seek to specific time position
-  - `skipBackward/skipForward()` - Skip by specified seconds
-  - `setPlaybackRate()` - Adjust playback speed
+  - `load_file(file_path)` - Load an audio file for playback
+  - `play()` / `pause()` / `stop()` - Control playback
+  - `set_position(seconds)` - Seek to a specific time position
+  - `get_position()` - Read the current position in seconds
+  - `get_duration()` - Read the total audio duration
 
 #### Enhanced Timeline Integration
 - **Real-time Updates**: Timeline position reflects actual playback position
 - **Section Integration**: Clicking sections seeks to that audio position
 - **Visual Feedback**: Play button state reflects actual playback status
+- **State Polling**: A `QTimer` in `main_window.py` polls the player every 100ms while playing
 
 ## Usage Instructions
 
-### Basic Playbook
+### Basic Playback
 1. **Load Audio File**: Drag and drop or select an audio file using "Choose File"
 2. **Analyze (Optional)**: Click "Analyze Audio" to detect song sections
 3. **Play Audio**: Click the large play button (▶️) in the timeline controls
 4. **Control Playback**:
-   - **Pause**: Click the pause button (⏸️) 
-   - **Seek**: Drag the timeline slider or click on song sections
-   - **Skip**: Use the 10-second skip buttons (⏪ ⏩)
-   - **Speed**: Use the speed menu to adjust playback rate
+   - **Pause**: Click the pause button (⏸️)
+   - **Stop**: Click the stop button (⏹) to stop and reset
+   - **Seek**: Drag the position slider or click on song sections
 
 ### Advanced Features
 - **Section Navigation**: Click any colored section block to jump to that part of the song
-- **Precise Seeking**: Drag the timeline slider for frame-accurate positioning
-- **Speed Control**: Useful for detailed analysis - slow down to 0.5x or speed up to 2x
+- **Precise Seeking**: Drag the position slider for precise positioning
 - **Error Recovery**: Clear error messages help troubleshoot file access or playback issues
 
 ## Technical Implementation
 
-### Audio Session Management
-- Configures macOS audio session for optimal playback
-- Handles security-scoped resource access for sandboxed environment
-- Proper cleanup when switching between files
+### Audio Player Module
+- Wraps **python-vlc**, which loads the **VLC media player** system library (`libvlc`)
+- VLC is initialised lazily on first file load, so importing the module does not require a working libvlc installation
+- Duration is read from VLC, with mutagen used as a fallback
+- Playback state and position are polled from VLC by a `QTimer` in `main_window.py`
+
+### Seeking
+- VLC represents positions as a ratio between `0.0` and `1.0`
+- `audio_player.set_position(seconds)` converts seconds to a ratio before seeking
+- `audio_player.get_position()` converts the VLC ratio back to seconds
 
 ### Performance Considerations
-- Efficient timer-based position updates (0.1s intervals during playback)
-- Minimal CPU usage when not playing
-- Proper memory management and resource cleanup
+- Efficient timer-based position updates (100ms intervals during playback)
+- Timer stops when playback is paused or stopped, keeping CPU usage low
+- Proper cleanup when switching between files
 
 ### Error Handling
 - File access validation
@@ -77,13 +81,14 @@ The Sectionist app now includes full audio playback functionality that allows us
 - Timeline shows both analysis results and playback position
 
 ### Section Editing
-- Playbook continues to work while editing sections
+- Playback continues to work while editing sections
 - Seeking to edited sections works as expected
 - Real-time feedback helps verify section boundaries
 
-## Browser/Platform Support
+## Platform Support
 
-- **Platforms**: macOS 12.0+ (native AVFoundation integration)
+- **Platforms**: Windows, macOS, Linux
+- **Audio Backend**: python-vlc (VLC media player / libvlc)
 - **Audio Formats**: MP3, WAV, AIFF, M4A, FLAC, OGG, AAC, WMA, OPUS
 - **File Size**: Up to 100MB (configurable)
 - **Performance**: Optimized for files up to 10 minutes duration
@@ -93,7 +98,7 @@ The Sectionist app now includes full audio playback functionality that allows us
 ### Common Issues
 1. **"Cannot access audio file"**
    - Ensure file is in an accessible location (not in restricted folders)
-   - Try copying the file to Documents folder
+   - Try copying the file to the Documents folder
 
 2. **"Failed to load audio"**
    - Check that the file format is supported
@@ -103,12 +108,12 @@ The Sectionist app now includes full audio playback functionality that allows us
 3. **Playback stutters or stops**
    - Check available system memory
    - Close other audio applications
-   - Try reducing playback speed
+   - Confirm the VLC media player (libvlc) is installed and on the library path
 
 ### Debug Information
 - Error messages appear below the playback controls
-- Check Console.app for detailed error logging
-- Audio player service provides comprehensive error descriptions
+- Check the terminal running the frontend for python-vlc error output
+- The audio player reports failures when loading or playing a file
 
 ## Future Enhancements
 
@@ -125,35 +130,32 @@ The Sectionist app now includes full audio playback functionality that allows us
 
 ## API Reference
 
-### AudioPlayerService Methods
+### AudioPlayer Methods
 
-```swift
-// Load audio file
-audioPlayer.loadAudio(from: audioFileURL)
+```python
+# Load audio file
+audio_player.load_file(file_path)
 
-// Control playback
-audioPlayer.play()
-audioPlayer.pause()
-audioPlayer.togglePlayback()
-audioPlayer.stop()
+# Control playback
+audio_player.play()
+audio_player.pause()
+audio_player.stop()
 
-// Navigation
-audioPlayer.seek(to: timeInSeconds)
-audioPlayer.skipBackward(seconds: 10)
-audioPlayer.skipForward(seconds: 10)
+# Navigation
+audio_player.set_position(time_in_seconds)
+audio_player.get_position()
 
-// Configuration
-audioPlayer.setPlaybackRate(1.5) // 1.5x speed
+# Metadata
+audio_player.get_duration()
 ```
 
-### Observable Properties
+### Playback State
 
-```swift
-@Published var isPlaying: Bool           // Current playback state
-@Published var currentTime: TimeInterval // Current position in seconds
-@Published var duration: TimeInterval    // Total audio duration
-@Published var playbackRate: Float       // Current playback rate
-@Published var errorMessage: String?     // Error message if any
+```python
+audio_player.is_playing   # Current playback state
+audio_player.is_paused    # Whether playback is paused
+audio_player.current_file # Path to the loaded audio file
+audio_player.duration     # Total audio duration in seconds
 ```
 
-This implementation provides a complete audio playbook solution that enhances the music analysis workflow by allowing users to immediately verify their analysis results against the actual audio content.
+This implementation provides a complete audio playback solution that enhances the music analysis workflow by allowing users to immediately verify their analysis results against the actual audio content.

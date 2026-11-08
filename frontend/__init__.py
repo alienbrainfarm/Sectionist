@@ -18,9 +18,4 @@ from .audio_player import AudioPlayer
 from .timeline_widget import TimelineWidget
 from .main_window import SectionistMainWindow
 
-__all__ = [
-    'AnalysisWorker',
-    'AudioPlayer', 
-    'TimelineWidget',
-    'SectionistMainWindow'
-]
+__all__ = ["AnalysisWorker", "AudioPlayer", "TimelineWidget", "SectionistMainWindow"]

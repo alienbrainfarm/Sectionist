@@ -10,7 +10,7 @@ applyTo: '**/*.py'
 ### PEP 8 Compliance
 - Follow **PEP 8** style guide strictly
 - Use 4 spaces for indentation (no tabs)
-- Maintain line length of 79 characters maximum
+- Maintain line length of 88 characters maximum (black default)
 - Use proper spacing around operators and after commas
 - Follow naming conventions:
   - `snake_case` for functions, variables, and module names
