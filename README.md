@@ -28,7 +28,15 @@ optional download. The app detects which is available and picks the better one.
 - 🎧 **Playback with seeking**, driven by VLC
 - 🔁 **Cycle region** like Logic's: drag in the ruler to loop a stretch (it snaps
   to bars; Alt places it freely), click it to toggle, **C** to cycle, or
-  right-click a section → **Loop This Section**
+  right-click a section → **Loop This Section**. Turning a loop on moves the
+  playhead to its start
+- 🔒 **Locks** for sections, chords and lyrics (padlocks beside the timeline
+  and the lyrics, or **Edit → Lock …**): locked parts take no edits and survive
+  a fresh analysis. Lyrics are editable, grouped under `[Section]` headers
+- 💿 **Export a practice mix** (**File → Export Mix…**, Ctrl+E): the stems you
+  can hear, over the loop if one is active, as MP3 or WAV
+- 📄 **Gig sheet** (**File → Print Gig Sheet…**, Ctrl+P, or **Export Gig Sheet
+  as PDF…**): an A4 sheet with each section's bar-by-bar chords and lyrics
 - 💾 **Save and reload** a song folder (audio copy plus `analysis.json`)
 - 🎤 **Lyrics** — transcribed locally from the vocal stem and shown beside the
   timeline
@@ -305,6 +313,11 @@ Sectionist/
 │   ├── stem_player.py             # live mixer for muting and soloing stems
 │   ├── stem_lanes.py              # stem waveforms with mute and solo
 │   ├── stems_controller.py        # wires the stems into the window
+│   ├── controllers.py             # creates the add-ons and routes the window's hooks
+│   ├── cycle.py                   # cycle (loop) region
+│   ├── song_edits.py              # locks and lyrics editing
+│   ├── mix_export.py              # export the audible stems as MP3/WAV
+│   ├── gig_sheet.py               # A4 gig sheet: print and PDF
 │   ├── conftest.py                # pytest fixtures (offscreen Qt)
 │   ├── test_*.py
 │   ├── requirements.txt

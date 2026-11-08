@@ -162,7 +162,7 @@ def test_vlc_jumps_back_when_playback_crosses_the_end(window, monkeypatch):
 
     seeks = []
     monkeypatch.setattr(window, "seek_to_position", seeks.append)
-    window.cycle.set_region(CycleRegion(16.0, 32.0))
+    window.cycle.set_region(CycleRegion(16.0, 32.0), snap=False)
     window.audio_player.is_playing = True
 
     window.cycle.on_position(31.9)
@@ -208,7 +208,7 @@ def test_lyrics_panel_opens_with_a_reason_when_there_are_none(window):
     lines = [{"start": 0, "end": 2, "text": "hello there"}]
     analysis = {"sections": [{"start": 0, "end": 4}], "lyrics": lines}
     window.display_results({"success": True, "analysis": analysis})
-    assert window.lyrics_text.toPlainText() == "hello there"
+    assert window.lyrics_text.toPlainText() == "[Section 1]\nhello there"
 
     window.display_results({"success": True, "analysis": {}})
     assert window.lyrics_text.toPlainText() == ""
@@ -219,7 +219,7 @@ def test_a_start_in_the_last_half_tick_still_loops(window, monkeypatch):
 
     seeks = []
     monkeypatch.setattr(window, "seek_to_position", seeks.append)
-    window.cycle.set_region(CycleRegion(16.0, 32.0))
+    window.cycle.set_region(CycleRegion(16.0, 32.0), snap=False)
     window.audio_player.is_playing = True
     window.cycle.last_position = 31.99  # started 10 ms before the end
     window.cycle.on_position(32.04)

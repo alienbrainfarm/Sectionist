@@ -194,7 +194,6 @@ class StemsController(QObject):
         self.lanes.set_stems(stem_set, duration)
         self.lanes.set_sections(self.window.timeline.sections)
         self.lanes.set_position(self.window.timeline.current_position)
-        self.gutter.setVisible(True)
         self._swap(self.stem_player)
 
     def use_original(self):
@@ -202,7 +201,6 @@ class StemsController(QObject):
         self.stem_player.stop()
         self.stem_player.close()
         self.lanes.clear()
-        self.gutter.setVisible(False)
 
     def clear_cache(self):
         """Free the disk space downloaded stems use; they download again."""

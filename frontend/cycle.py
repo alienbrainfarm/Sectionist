@@ -205,7 +205,15 @@ class CycleController(QObject):
 
     # --- region ---------------------------------------------------------------
 
-    def set_region(self, region):
+    def set_region(self, region, snap=True):
+        """Show and apply a region.
+
+        Turning a loop on (or making a new one) moves the playhead to its
+        start, so practice begins at the top of the loop; so does editing an
+        active loop so that the playhead falls outside it. ``snap=False``
+        restores a saved region without moving anything.
+        """
+        was_on = bool(self.region and self.region.enabled)
         self.region = region
         enabled = bool(region and region.enabled)
         for widget in (self.button, self.action):
@@ -218,6 +226,10 @@ class CycleController(QObject):
         stems = self.window.stems.stem_player
         stems.set_loop((region.start, region.end) if enabled else None)
         self.last_position = self.window.timeline.current_position
+        outside = enabled and not region.contains(self.last_position)
+        if snap and enabled and (not was_on or outside):
+            self.window.seek_to_position(region.start)
+            self.last_position = region.start
 
     def toggle(self):
         if self.region is None:
@@ -256,7 +268,7 @@ class CycleController(QObject):
             )
         except (TypeError, KeyError, ValueError):
             region = None
-        self.set_region(region)
+        self.set_region(region, snap=False)
 
     # --- playback -------------------------------------------------------------
 

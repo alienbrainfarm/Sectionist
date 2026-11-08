@@ -35,8 +35,7 @@ try:
     from .lyrics_view import create_lyrics_dock, show_lyrics
     from .results_text import format_details
     from .stem_lanes import StemLanes, TimelineGutter
-    from .stems_controller import StemsController
-    from .cycle import CycleController
+    from .controllers import Addons
     from .panels import (
         EmptyState,
         HeaderBar,
@@ -54,8 +53,7 @@ except ImportError:
     from lyrics_view import create_lyrics_dock, show_lyrics
     from results_text import format_details
     from stem_lanes import StemLanes, TimelineGutter
-    from stems_controller import StemsController
-    from cycle import CycleController
+    from controllers import Addons
     from panels import (
         EmptyState,
         HeaderBar,
@@ -117,13 +115,12 @@ class SectionistMainWindow(QMainWindow):
 
         self.build_status_bar()
         self.create_menu_bar()
-        self.stems = StemsController(self)
-        self.cycle = CycleController(self)
 
         # Lyrics live in a dock so they can be hidden or floated without
         # disturbing the section and chord layout.
         self.lyrics_dock, self.lyrics_text = create_lyrics_dock(self)
         self.lyrics_dock.visibilityChanged.connect(self.toggle_lyrics_action.setChecked)
+        self.addons = Addons(self)  # stems, cycle, locks, export, gig sheet
 
     def build_workspace(self):
         """Timeline card on top, sections and details side by side below."""
@@ -340,8 +337,7 @@ class SectionistMainWindow(QMainWindow):
         # A new file must not show the previous song's analysis.
         self.analysis_results = None
         self.display_results({"success": True, "analysis": {}})
-        self.stems.song_changed(file_path)
-        self.cycle.clear()
+        self.addons.song_changed(file_path)
 
         # Load into audio player
         if self.audio_player.load_file(file_path):
@@ -362,8 +358,7 @@ class SectionistMainWindow(QMainWindow):
 
         # Stop playback
         self.stop_playback()
-        self.stems.song_changed(None)
-        self.cycle.clear()
+        self.addons.song_changed(None)
 
         # Reset UI
         self.setWindowTitle("Sectionist")
@@ -422,14 +417,14 @@ class SectionistMainWindow(QMainWindow):
 
     def analysis_finished(self, results: Dict):
         """Handle completed analysis."""
-        self.analysis_results = results
+        self.analysis_results = results = self.addons.keep_locked(results)
         self.end_analysis()
         self.save_action.setEnabled(True)  # Enable save after analysis
         self.set_status("Analysis complete")
 
         # Show results
         self.display_results(results)
-        self.stems.analysis_finished(results.get("analysis", {}))
+        self.addons.analysis_finished(results)
 
         # Add to recent files
         if self.current_file:
@@ -597,7 +592,7 @@ class SectionistMainWindow(QMainWindow):
                 # Save analysis data
                 analysis_file = song_folder / "analysis.json"
                 with open(analysis_file, "w") as f:
-                    saved = dict(self.analysis_results, cycle=self.cycle.saved())
+                    saved = dict(self.analysis_results, **self.addons.saved())
                     json.dump(saved, f, indent=2)
 
                 self.set_status(f"Saved to {song_folder}")
@@ -649,7 +644,7 @@ class SectionistMainWindow(QMainWindow):
             # Display results without re-analyzing
             self.analysis_results = results
             self.display_results(self.analysis_results)
-            self.cycle.restore(results.get("cycle"))
+            self.addons.song_loaded(results)
             self.save_action.setEnabled(True)
             self.set_status(f"Loaded {folder_path.name}")
 
@@ -716,7 +711,7 @@ class SectionistMainWindow(QMainWindow):
 
         try:
             self.audio_player.stop()
-            self.stems.shutdown()
+            self.addons.shutdown()
         except Exception:
             pass
 

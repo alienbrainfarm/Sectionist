@@ -20,10 +20,12 @@ from PyQt6.QtWidgets import (
 try:
     from . import timeline_paint as paint
     from .chord_track import CHORD_LANE_HEIGHT
+    from .song_edits import lock_button
     from .theme import BORDER, PLAYHEAD, SURFACE, TEXT, TEXT_DIM, ui_font
 except ImportError:
     import timeline_paint as paint
     from chord_track import CHORD_LANE_HEIGHT
+    from song_edits import lock_button
     from theme import BORDER, PLAYHEAD, SURFACE, TEXT, TEXT_DIM, ui_font
 
 GUTTER = 132
@@ -347,24 +349,39 @@ class StemLanes(QWidget):
 
 
 class TimelineGutter(QWidget):
-    """Lane names to the left of the timeline, matching the stem gutter."""
+    """Lane names and their locks to the left of the timeline.
+
+    Its width matches the stem lanes' controls, so every lane shares one
+    time axis.
+    """
 
     def __init__(self, timeline, parent=None):
         super().__init__(parent)
         self.timeline = timeline
         self.setFixedWidth(GUTTER)
-        self.setVisible(False)
+        self.sections_lock = lock_button("sections", self)
+        self.chords_lock = lock_button("chords", self)
 
-    def paintEvent(self, _event):
-        painter = QPainter(self)
-        painter.setPen(QColor(TEXT_DIM))
-        painter.setFont(ui_font(9))
+    def lanes(self):
+        """(sections band, chord lane or None) in this widget's coordinates."""
         height = self.height()
         has_chords = bool(self.timeline.chords)
         bottom = height - CHORD_LANE_HEIGHT - paint.CHORD_GAP if has_chords else height
-        align = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
         band = QRectF(0, paint.SECTION_TOP, GUTTER, bottom - paint.SECTION_TOP)
+        lane = QRectF(0, height - CHORD_LANE_HEIGHT, GUTTER, CHORD_LANE_HEIGHT)
+        return band, (lane if has_chords else None)
+
+    def paintEvent(self, _event):
+        band, lane = self.lanes()
+        x = GUTTER - 36
+        self.sections_lock.move(int(x), int(band.center().y() - 12))
+        self.chords_lock.setVisible(lane is not None)
+        if lane is not None:
+            self.chords_lock.move(int(x), int(lane.center().y() - 12))
+        painter = QPainter(self)
+        painter.setPen(QColor(TEXT_DIM))
+        painter.setFont(ui_font(9))
+        align = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
         painter.drawText(band, align, "Sections")
-        if has_chords:
-            lane = QRectF(0, height - CHORD_LANE_HEIGHT, GUTTER, CHORD_LANE_HEIGHT)
+        if lane is not None:
             painter.drawText(lane, align, "Chords")

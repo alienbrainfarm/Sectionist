@@ -18,5 +18,8 @@ numpy>=1.24.0
 soundfile>=0.12.0
 sounddevice>=0.4.6
 
+# Exporting a mix of the stems as MP3 (WAV needs nothing extra)
+lameenc>=1.7
+
 # Development and testing
 pytest>=7.0.0
