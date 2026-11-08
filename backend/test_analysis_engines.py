@@ -368,3 +368,29 @@ def test_add_beats_is_a_noop_without_the_optional_model(monkeypatch):
 
     assert result == {"beats_detected": 7}
     assert "downbeats" not in result
+
+
+def test_librosa_engine_can_skip_heuristic_segmentation(monkeypatch):
+    from analysis.librosa_engine import LibrosaAnalyzer
+
+    seen = {}
+
+    def fake_analyze(path, include_sections=True):
+        seen["include_sections"] = include_sections
+        return {
+            "duration": 1.0,
+            "tempo": 120.0,
+            "key": "C major",
+            "key_changes": [],
+            "sections": [],
+            "beats_detected": 0,
+            "chords": [],
+        }
+
+    monkeypatch.setattr("example.analyze_audio_file", fake_analyze)
+    monkeypatch.setattr("analysis.librosa_engine.beats_available", lambda: False)
+
+    result = LibrosaAnalyzer().analyze("song.mp3", include_sections=False)
+
+    assert seen["include_sections"] is False
+    assert result["sections"] == []
