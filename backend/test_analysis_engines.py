@@ -465,7 +465,7 @@ def test_transcribe_prefers_the_vocal_stem(monkeypatch):
     seen = {}
 
     class FakeModel:
-        def transcribe(self, path, vad_filter=False):
+        def transcribe(self, path, vad_filter=False, **kwargs):
             seen["path"] = path
             seen["vad"] = vad_filter
             return [], None
@@ -473,10 +473,11 @@ def test_transcribe_prefers_the_vocal_stem(monkeypatch):
     monkeypatch.setattr(lyrics, "lyrics_available", lambda: True)
     monkeypatch.setattr(lyrics, "_get_model", lambda: FakeModel())
     monkeypatch.setattr(lyrics, "vocals_path", lambda path: "/tmp/vocals.wav")
+    monkeypatch.setattr(lyrics, "load_audio", lambda path: f"decoded:{path}")
 
     lyrics.transcribe("song.mp3")
 
-    assert seen["path"] == "/tmp/vocals.wav"
+    assert seen["path"] == "decoded:/tmp/vocals.wav"
     assert seen["vad"] is False
 
 
@@ -486,14 +487,75 @@ def test_transcribe_falls_back_to_the_mix(monkeypatch):
     seen = {}
 
     class FakeModel:
-        def transcribe(self, path, vad_filter=False):
+        def transcribe(self, path, vad_filter=False, **kwargs):
             seen["path"] = path
             return [], None
 
     monkeypatch.setattr(lyrics, "lyrics_available", lambda: True)
     monkeypatch.setattr(lyrics, "_get_model", lambda: FakeModel())
     monkeypatch.setattr(lyrics, "vocals_path", lambda path: None)
+    monkeypatch.setattr(lyrics, "load_audio", lambda path: f"decoded:{path}")
 
     lyrics.transcribe("song.mp3")
 
-    assert seen["path"] == "song.mp3"
+    assert seen["path"] == "decoded:song.mp3"
+
+
+def test_lyrics_audio_is_decoded_here_not_by_pyav(tmp_path):
+    # faster-whisper 1.2 cannot decode with PyAV 19, so Whisper gets samples.
+    import numpy as np
+    import soundfile as sf
+
+    from analysis import lyrics
+
+    path = tmp_path / "stereo.wav"
+    sf.write(path, np.zeros((44100, 2)), 44100)
+    samples = lyrics.load_audio(path)
+    assert samples.ndim == 1 and len(samples) == 16000
+    assert samples.dtype == np.float32
+
+
+def test_lyric_lines_follow_pauses_and_punctuation():
+    from collections import namedtuple
+
+    from analysis.lyrics import split_lines
+
+    Word = namedtuple("Word", "start end word")
+    words = [
+        Word(0.0, 0.3, " Take"),
+        Word(0.3, 0.5, " a"),
+        Word(0.5, 0.9, " walk."),
+        Word(1.0, 1.3, " Breathe"),
+        Word(1.3, 1.6, " in"),
+        Word(2.6, 3.0, " the"),  # a pause before this word
+        Word(3.0, 3.4, " air"),
+    ]
+    lines = split_lines(words)
+    assert [line["text"] for line in lines] == [
+        "Take a walk.",
+        "Breathe in",
+        "the air",
+    ]
+    assert (lines[0]["start"], lines[0]["end"]) == (0.0, 0.9)
+
+    many = [Word(i * 0.3, i * 0.3 + 0.2, " word") for i in range(30)]
+    assert all(len(line["text"]) <= 48 for line in split_lines(many))
+
+    # One word short of a full stop stays on its line.
+    tail = [Word(i * 0.3, i * 0.3 + 0.2, " word") for i in range(9)]
+    tail.append(Word(2.7, 3.2, " concentration."))
+    assert len(split_lines(tail)) == 1
+
+
+def test_analysis_says_whether_lyrics_could_be_transcribed(monkeypatch):
+    from analysis import librosa_engine
+    from analysis.librosa_engine import LibrosaAnalyzer
+
+    monkeypatch.setattr(librosa_engine, "lyrics_available", lambda: False)
+    result = LibrosaAnalyzer.add_lyrics("song.mp3", {})
+    assert result == {"lyrics_available": False}
+
+    monkeypatch.setattr(librosa_engine, "lyrics_available", lambda: True)
+    monkeypatch.setattr(librosa_engine, "transcribe", lambda path: [])
+    result = LibrosaAnalyzer.add_lyrics("song.mp3", {})
+    assert result == {"lyrics_available": True}  # transcribed, nothing sung

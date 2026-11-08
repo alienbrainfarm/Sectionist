@@ -19,7 +19,18 @@ def qapp():
     """Provide a single QApplication for the whole test session."""
     from PyQt6.QtWidgets import QApplication
 
+    import tempfile
+
+    from PyQt6.QtCore import QSettings
+
     app = QApplication.instance()
     if app is None:
         app = QApplication([])
+    # Preferences the app remembers (QSettings) go to a throwaway folder,
+    # never the developer's real settings.
+    app.setOrganizationName("SectionistTests")
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(
+        QSettings.Format.IniFormat, QSettings.Scope.UserScope, tempfile.mkdtemp()
+    )
     yield app

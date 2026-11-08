@@ -87,9 +87,14 @@ class LibrosaAnalyzer(Analyzer):
 
     @staticmethod
     def add_lyrics(file_path, result, lines=None):
-        """Attach transcribed lyrics to ``result``, or leave it untouched."""
+        """Attach transcribed lyrics to ``result``, or leave it untouched.
+
+        ``lyrics_available`` tells the app whether there was a transcriber at
+        all, so it can tell "install faster-whisper" from "no vocals found".
+        """
         if lines is None:
-            if not lyrics_available():
+            result["lyrics_available"] = lyrics_available()
+            if not result["lyrics_available"]:
                 return result
             try:
                 lines = transcribe(file_path)

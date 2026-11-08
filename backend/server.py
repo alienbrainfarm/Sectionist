@@ -226,6 +226,7 @@ def analyze_audio():
                     "beats_detected": results["beats_detected"],
                     "chords": results["chords"],
                     "chord_source": results.get("chord_source", "mix"),
+                    "lyrics_available": results.get("lyrics_available", False),
                     "engine": results.get("engine", "librosa"),
                 },
             }

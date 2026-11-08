@@ -68,6 +68,67 @@ def _get_model():
         return _model
 
 
+def load_audio(path, sr=16000):
+    """Mono float32 samples at Whisper's rate.
+
+    Decoded here with librosa rather than by faster-whisper, which uses PyAV:
+    faster-whisper 1.2 calls an av.open() argument that PyAV 19 removed, so
+    letting it decode broke lyrics outright on a fresh install.
+    """
+    import librosa
+
+    samples, _rate = librosa.load(str(path), sr=sr, mono=True)
+    return samples
+
+
+# Whisper's segments follow its 30-second windows, not the song: on a clean
+# vocal stem they come back paragraph-long. Lines are rebuilt from word
+# timings instead, breaking where a singer would.
+MAX_LINE_CHARS = 48
+PAUSE_SECONDS = 0.6
+
+
+def _line(words):
+    return {
+        "start": round(float(words[0].start), 2),
+        "end": round(float(words[-1].end), 2),
+        "text": " ".join(word.word.strip() for word in words),
+    }
+
+
+def split_lines(words, max_chars=MAX_LINE_CHARS, pause=PAUSE_SECONDS):
+    """Group timed words (``.start``, ``.end``, ``.word``) into lyric lines.
+
+    A line ends at a pause, after a sentence once it has a few words, after a
+    comma once it is getting long, or before it would pass ``max_chars``
+    (a little more if the next word finishes the phrase).
+    """
+    lines, current = [], []
+    for word in words:
+        if not word.word.strip():
+            continue
+        if current:
+            previous = current[-1].word.strip()
+            length = len(" ".join(w.word.strip() for w in current + [word]))
+            # A line may run a little long to finish its phrase rather than
+            # leave one word stranded on the next ("breaks your" /
+            # "concentration.").
+            finishes = word.word.strip()[-1] in ".!?,;:"
+            too_long = length > max_chars + (16 if finishes else 0)
+            if (
+                word.start - current[-1].end >= pause
+                or too_long
+                or (previous[-1] in ".!?" and len(current) >= 3)
+                or (previous[-1] in ",;:" and length > max_chars * 0.6)
+            ):
+                lines.append(_line(current))
+                current = []
+        current.append(word)
+    if current:
+        lines.append(_line(current))
+    return lines
+
+
 def transcribe(file_path):
     """Return ``[{start, end, text}]`` lyric lines, or [] when unavailable."""
     if not lyrics_available():
@@ -77,13 +138,19 @@ def transcribe(file_path):
 
     # The isolated vocal stem when stems are on, otherwise the mix.
     source = vocals_path(file_path) or file_path
-    segments, _info = model.transcribe(str(source), vad_filter=False)
-    return [
-        {
-            "start": round(float(segment.start), 2),
-            "end": round(float(segment.end), 2),
-            "text": segment.text.strip(),
-        }
-        for segment in segments
-        if segment.text.strip()
-    ]
+    segments, _info = model.transcribe(
+        load_audio(source), vad_filter=False, word_timestamps=True
+    )
+    lines = []
+    for segment in segments:
+        if segment.words:
+            lines.extend(split_lines(segment.words))
+        elif segment.text.strip():
+            lines.append(
+                {
+                    "start": round(float(segment.start), 2),
+                    "end": round(float(segment.end), 2),
+                    "text": segment.text.strip(),
+                }
+            )
+    return lines

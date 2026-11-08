@@ -6,16 +6,16 @@ are shown. Switching keeps the playhead where it was and carries on playing if
 the song was playing.
 """
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QSettings
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMenu, QMessageBox, QPushButton
 
 try:
     from .stem_player import StemPlayer, playback_available
-    from .stems_client import STEM_MODELS, StemsWorker, clear_cache
+    from .stems_client import DEFAULT_MODEL, STEM_MODELS, StemsWorker, clear_cache
 except ImportError:
     from stem_player import StemPlayer, playback_available
-    from stems_client import STEM_MODELS, StemsWorker, clear_cache
+    from stems_client import DEFAULT_MODEL, STEM_MODELS, StemsWorker, clear_cache
 
 INSTALL_HINT = (
     "Playing stems needs the sounddevice and soundfile packages.\n"
@@ -32,6 +32,7 @@ class StemsController(QObject):
         self.original_player = window.audio_player
         self.stem_player = StemPlayer(stream_factory)
         self.worker = None
+        self.automatic = False  # fetched after analysis rather than asked for
 
         self.button = QPushButton("Split stems")
         self.button.setToolTip("Separate vocals, drums, bass and the rest")
@@ -48,6 +49,16 @@ class StemsController(QObject):
         header.insertWidget(header.indexOf(window.header.analyze_button), self.button)
         window.analysis_menu.addSeparator()
         window.analysis_menu.addMenu(self.menu).setText("Split &Stems")
+        # Stems come down after each analysis (~50 MB a song); worth turning
+        # off on a slow link to a remote backend. Remembered between runs.
+        self.auto_action = window.analysis_menu.addAction("Load Stems After Analysis")
+        self.auto_action.setCheckable(True)
+        self.auto_action.setChecked(
+            QSettings().value("stems/load_after_analysis", True, type=bool)
+        )
+        self.auto_action.toggled.connect(
+            lambda on: QSettings().setValue("stems/load_after_analysis", on)
+        )
         self.clear_action = window.analysis_menu.addAction("Clear Stem Cache")
         self.clear_action.setToolTip("Delete downloaded stems to free disk space")
         self.clear_action.triggered.connect(self.clear_cache)
@@ -73,12 +84,31 @@ class StemsController(QObject):
         if file_path and playback_available():
             self.start(StemsWorker(file_path))
 
-    def split(self, model):
+    def analysis_finished(self, analysis):
+        """Show the stems the analysis just made, without being asked.
+
+        Only when the analysis read its chords from stems: the backend then
+        has them cached and this is a download, not a separation. With stems
+        switched off on the backend nothing is fetched.
+        """
+        if self.active or not self.window.current_file:
+            return
+        if not self.auto_action.isChecked():
+            return
+        if analysis.get("chord_source") != "stems" or not playback_available():
+            return
+        if self.worker is not None and self.worker.model is not None:
+            return  # the user already asked for a split
+        self.split(DEFAULT_MODEL, automatic=True)
+
+    def split(self, model, automatic=False):
         file_path = self.window.current_file
         if not file_path:
             return
+        self.automatic = automatic
         if not playback_available():
-            QMessageBox.information(self.window, "Split stems", INSTALL_HINT)
+            if not automatic:
+                QMessageBox.information(self.window, "Split stems", INSTALL_HINT)
             return
         self.use_original()
         self.lanes.show_message("Starting…")
@@ -135,7 +165,10 @@ class StemsController(QObject):
         self.worker = None
         self.button.setEnabled(True)
         self.button.setText("Split stems")
-        if asked:
+        if asked and self.automatic:
+            self.lanes.clear()  # not asked for, so not worth an error panel
+            self.window.set_status(f"Stems not loaded: {message}")
+        elif asked:
             self.lanes.show_message(f"Couldn't split stems: {message}")
             self.window.set_status(f"Stem splitting failed: {message}")
         else:

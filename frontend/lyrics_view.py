@@ -55,6 +55,46 @@ def format_lyrics(lines, sections=None, gap=2.0):
     return "\n".join(blocks)
 
 
+NO_TRANSCRIBER = (
+    "The backend can't transcribe lyrics.\n\n"
+    "On the machine running the backend, install faster-whisper:\n"
+    "    pip install -r backend/requirements-lyrics.txt\n"
+    "then restart the server and analyse again."
+)
+NO_VOCALS = "No sung words were found in this song."
+NO_LYRICS = (  # an older backend that does not say whether it can transcribe
+    "No lyrics came back from this analysis: either an instrumental, or the "
+    "backend lacks faster-whisper (backend/requirements-lyrics.txt on the "
+    "machine running it)."
+)
+
+
+def missing_lyrics_reason(analysis):
+    available = analysis.get("lyrics_available")
+    if available is None:
+        return NO_LYRICS
+    return NO_VOCALS if available else NO_TRANSCRIBER
+
+
+def show_lyrics(dock, text, action, analysis, sections):
+    """Fill the lyrics panel after an analysis and show it.
+
+    The panel opens after every analysis, saying why when there are no
+    lyrics, so a missing transcriber is not mistaken for a missing feature.
+    With no analysis (a song just opened or closed) it is only cleared.
+    """
+    lyrics = analysis.get("lyrics", [])
+    if lyrics:
+        text.setPlainText(format_lyrics(lyrics, sections))
+    elif analysis.get("sections"):
+        text.setPlainText(missing_lyrics_reason(analysis))
+    else:
+        text.clear()
+        return
+    dock.show()
+    action.setChecked(True)
+
+
 def create_lyrics_dock(parent):
     """Build the lyrics dock and its text area, attached to ``parent``."""
     from PyQt6.QtCore import Qt
