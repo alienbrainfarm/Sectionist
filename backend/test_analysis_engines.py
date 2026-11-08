@@ -394,3 +394,28 @@ def test_librosa_engine_can_skip_heuristic_segmentation(monkeypatch):
 
     assert seen["include_sections"] is False
     assert result["sections"] == []
+
+
+# --- lyrics ------------------------------------------------------------------
+
+
+def test_add_lyrics_attaches_lines():
+    from analysis.librosa_engine import LibrosaAnalyzer
+
+    result = {}
+    lines = [{"start": 0.0, "end": 1.0, "text": "hello"}]
+
+    LibrosaAnalyzer.add_lyrics("song.mp3", result, lines=lines)
+
+    assert result["lyrics"] == lines
+
+
+def test_add_lyrics_is_a_noop_without_the_optional_package(monkeypatch):
+    from analysis.librosa_engine import LibrosaAnalyzer
+
+    monkeypatch.setattr("analysis.librosa_engine.lyrics_available", lambda: False)
+    result = {"duration": 12.0}
+
+    LibrosaAnalyzer.add_lyrics("song.mp3", result)
+
+    assert "lyrics" not in result

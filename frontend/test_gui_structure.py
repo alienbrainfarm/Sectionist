@@ -304,3 +304,75 @@ def test_bar_lines_render(qapp):
 
     assert len(widget.downbeats) == 29
     assert not pixmap.isNull()
+
+
+def test_format_lyrics_groups_stanzas_on_pauses():
+    from lyrics_view import format_lyrics
+
+    lines = [
+        {"start": 0.0, "end": 4.0, "text": "first line"},
+        {"start": 4.0, "end": 8.0, "text": "second line"},
+        {"start": 14.0, "end": 18.0, "text": "after a gap"},
+        {"start": 18.0, "end": 22.0, "text": "same stanza"},
+    ]
+
+    assert format_lyrics(lines) == "first line\nsecond line\n\nafter a gap\nsame stanza"
+
+
+def test_lyrics_panel_populates_from_results(qapp):
+    from main_window import SectionistMainWindow
+
+    payload = {
+        "success": True,
+        "analysis": {
+            "duration": 30.0,
+            "tempo": 100.0,
+            "key": "D major",
+            "key_changes": [],
+            "sections": [{"name": "Verse", "start": 0.0, "end": 30.0}],
+            "beats_detected": 40,
+            "chords": [],
+            "lyrics": [
+                {"start": 0.0, "end": 4.0, "text": "be on my side"},
+                {"start": 4.0, "end": 8.0, "text": "there is no reason"},
+            ],
+        },
+    }
+
+    window = SectionistMainWindow()
+    try:
+        window.display_results(payload)
+
+        text = window.lyrics_text.toPlainText()
+        assert "be on my side" in text
+        assert "there is no reason" in text
+        assert not window.lyrics_dock.isHidden()
+    finally:
+        window.close()
+
+
+def test_format_lyrics_breaks_on_section_change():
+    from lyrics_view import format_lyrics
+
+    lines = [
+        {"start": 0.0, "end": 4.0, "text": "a"},
+        {"start": 4.0, "end": 8.0, "text": "b"},
+        {"start": 8.0, "end": 12.0, "text": "c"},
+        {"start": 12.0, "end": 16.0, "text": "d"},
+    ]
+    sections = [{"start": 0.0, "end": 8.0}, {"start": 8.0, "end": 16.0}]
+
+    assert format_lyrics(lines, sections) == "a\nb\n\nc\nd"
+
+
+def test_format_lyrics_never_leaves_a_one_line_stanza():
+    from lyrics_view import format_lyrics
+
+    lines = [
+        {"start": 0.0, "end": 4.0, "text": "a"},
+        {"start": 4.0, "end": 8.0, "text": "b"},
+    ]
+    # The section changes after a single line, which should not split it off.
+    sections = [{"start": 0.0, "end": 4.0}, {"start": 4.0, "end": 8.0}]
+
+    assert format_lyrics(lines, sections) == "a\nb"

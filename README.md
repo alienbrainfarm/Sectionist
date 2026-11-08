@@ -25,6 +25,7 @@ optional download. The app detects which is available and picks the better one.
 - 📊 **Interactive timeline** — click, drag, split, join, rename sections; retype or re-boundary chords
 - 🎧 **Playback with seeking**, driven by VLC
 - 💾 **Save and reload** a song folder (audio copy plus `analysis.json`)
+- 🎤 **Lyrics** — transcribed locally and shown beside the timeline
 - 🧠 **Learns from your corrections** — train a small label model on songs you fix
 - 🖥️ **Windows, macOS and Linux**
 
@@ -209,6 +210,9 @@ Sectionist/
 │   │   ├── beats.py               # Beat This! wrapper
 │   │   ├── sections.py            # merging, naming, downbeat snapping
 │   │   ├── calibration.py         # correction model
+│   │   ├── lyrics.py              # Whisper transcription
+│   │   ├── chunking.py            # overlapping windows for MPS
+│   │   ├── chords.py              # beat-synchronous chord recognition
 │   │   └── device.py              # device selection
 │   ├── smoke_test.py              # end-to-end check against a running server
 │   ├── benchmark_*.py             # standalone diagnostics, not pytest tests
@@ -216,6 +220,7 @@ Sectionist/
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
 │   ├── requirements-beats.txt
+│   ├── requirements-lyrics.txt
 │   ├── requirements-songformer.txt
 │   └── start_server.sh
 ├── frontend/                      # PyQt6 desktop app
@@ -224,6 +229,8 @@ Sectionist/
 │   ├── timeline_widget.py         # timeline rendering and editing
 │   ├── audio_player.py            # VLC playback wrapper
 │   ├── analysis_worker.py         # background HTTP worker
+│   ├── chord_track.py             # chord lane painting and geometry
+│   ├── lyrics_view.py             # lyrics panel and stanza formatting
 │   ├── conftest.py                # pytest fixtures (offscreen Qt)
 │   ├── test_*.py
 │   ├── requirements.txt
@@ -339,6 +346,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 - [x] Chord track on the timeline
 - [x] Chord editing (rename, drag boundaries)
 - [x] Bar lines drawn in the timeline
+- [x] Lyrics transcription and panel
 - [ ] Chord vocabulary beyond major/minor triads
 - [ ] Key change visualisation
 - [ ] Local database for song modifications

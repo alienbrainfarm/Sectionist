@@ -34,11 +34,13 @@ try:
     from .analysis_worker import AnalysisWorker
     from .audio_player import AudioPlayer
     from .timeline_widget import TimelineWidget
+    from .lyrics_view import create_lyrics_dock, format_lyrics
 except ImportError:
     # Fall back to absolute imports (when run directly)
     from analysis_worker import AnalysisWorker
     from audio_player import AudioPlayer
     from timeline_widget import TimelineWidget
+    from lyrics_view import create_lyrics_dock, format_lyrics
 
 
 class SectionistMainWindow(QMainWindow):
@@ -189,6 +191,10 @@ class SectionistMainWindow(QMainWindow):
         """)
         layout.addWidget(self.no_file_label)
 
+        # Lyrics live in a dock so they can be hidden or floated without
+        # disturbing the section and chord layout.
+        self.lyrics_dock, self.lyrics_text = create_lyrics_dock(self)
+
         # Hide results initially
         self.timeline_group.setVisible(False)
         self.results_splitter.setVisible(False)
@@ -249,6 +255,12 @@ class SectionistMainWindow(QMainWindow):
         self.toggle_details_action.setChecked(True)
         self.toggle_details_action.triggered.connect(self.toggle_details_panel)
         config_menu.addAction(self.toggle_details_action)
+
+        self.toggle_lyrics_action = QAction("Show Lyrics Panel", self)
+        self.toggle_lyrics_action.setCheckable(True)
+        self.toggle_lyrics_action.setChecked(False)
+        self.toggle_lyrics_action.triggered.connect(self.toggle_lyrics_panel)
+        config_menu.addAction(self.toggle_lyrics_action)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         """Handle drag enter events."""
@@ -479,6 +491,14 @@ class SectionistMainWindow(QMainWindow):
         self.timeline.set_chords(chords)
         self.timeline.set_downbeats(analysis.get("downbeats", []))
 
+        lyrics = analysis.get("lyrics", [])
+        if lyrics:
+            self.lyrics_text.setPlainText(format_lyrics(lyrics, sections))
+            self.lyrics_dock.show()
+            self.toggle_lyrics_action.setChecked(True)
+        else:
+            self.lyrics_text.clear()
+
     def format_time(self, seconds: float) -> str:
         """Format time in MM:SS format."""
         minutes = int(seconds // 60)
@@ -691,6 +711,10 @@ class SectionistMainWindow(QMainWindow):
                 self.update_recent_menu()
         except Exception:
             pass  # Silently fail if can't load recent files
+
+    def toggle_lyrics_panel(self):
+        """Show or hide the lyrics dock."""
+        self.lyrics_dock.setVisible(self.toggle_lyrics_action.isChecked())
 
     def toggle_sections_panel(self):
         """Toggle visibility of sections panel."""
