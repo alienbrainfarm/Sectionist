@@ -154,10 +154,11 @@ SongFormer on an M1 Pro (16 GB), CPU:
 | 73 s | 22 s | 3.4x realtime | — |
 | 192 s | 75 s | 2.5x realtime | 8.1 GB |
 
-On a CUDA GPU the same work takes a few seconds. `SECTIONIST_DEVICE=mps` is
-available on Apple Silicon but is **not** selected automatically: it is ~3x
-faster on short inputs and then degrades sharply on longer ones, where it ends
-up slower than the CPU. Details in
+On Apple Silicon the GPU (MPS) is used by default and long tracks are processed
+in overlapping 90-second windows, which keeps each pass in MPS's fast regime.
+Measured on a memory-tight 16 GB M1 Pro, a 3:12 track took **57 s** that way
+versus ~97 s on CPU. On a CUDA GPU the whole file runs in one pass in a few
+seconds. Set `SECTIONIST_DEVICE=cpu` to override. Details in
 [docs/MODEL_RESEARCH.md](docs/MODEL_RESEARCH.md).
 
 ## Learning from your corrections

@@ -249,8 +249,13 @@ Two conclusions:
 2. **MPS is 3x faster but falls off a cliff between 120 s and 200 s.** At 200 s
    it is 8x slower than linear scaling predicts, which is consistent with
    unified-memory pressure and swapping on a 16 GB machine (the model is
-   designed around 420 s windows). On a 16 GB Mac, either stay on CPU or chunk
-   audio into ~90-120 s windows with overlap and stitch the results.
+   designed around 420 s windows).
+
+   **Resolved by chunking.** Long tracks are now split into overlapping 90 s
+   windows, each window's core kept and stitched, and the accelerator cache is
+   released between windows. On a 3:12 track that took the run from 431 s
+   (unreleased MPS, swapping) to **57 s**, against ~97 s on CPU under the same
+   memory pressure. MPS is therefore the default on Apple Silicon again.
 
 On a 32 GB RTX 5090 the whole 420 s window fits comfortably and upstream reports
 2-4 s per song.
