@@ -18,6 +18,8 @@ import importlib.util
 import os
 import threading
 
+from .stems import vocals_path
+
 MODEL_ENV = "SECTIONIST_WHISPER_MODEL"
 DEVICE_ENV = "SECTIONIST_WHISPER_DEVICE"
 
@@ -71,7 +73,10 @@ def transcribe(file_path):
         return []
 
     model = _get_model()
-    segments, _info = model.transcribe(file_path, vad_filter=False)
+
+    # Optionally transcribe an isolated vocal stem instead of the mix.
+    source = vocals_path(file_path) or file_path
+    segments, _info = model.transcribe(str(source), vad_filter=False)
     return [
         {
             "start": round(float(segment.start), 2),

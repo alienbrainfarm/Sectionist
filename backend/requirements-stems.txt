@@ -1,0 +1,11 @@
+# Optional: vocal separation before transcription (Demucs).
+#
+#   pip install -r requirements-stems.txt
+#   SECTIONIST_STEMS=1 ./start_server.sh
+#
+# Off by default: separation runs at roughly 2.3x realtime on CPU, so a
+# four-minute song costs about 105 seconds of extra work. The measured gain to
+# lyrics was marginal on the tracks tested. Model weights are downloaded on
+# first use.
+
+demucs>=4.0
