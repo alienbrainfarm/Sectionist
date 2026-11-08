@@ -211,6 +211,7 @@ Sectionist/
 │   │   ├── sections.py            # merging, naming, downbeat snapping
 │   │   ├── calibration.py         # correction model
 │   │   ├── lyrics.py              # Whisper transcription
+│   │   ├── stems.py               # optional Demucs vocal separation
 │   │   ├── chunking.py            # overlapping windows for MPS
 │   │   ├── chords.py              # beat-synchronous chord recognition
 │   │   └── device.py              # device selection
@@ -221,6 +222,7 @@ Sectionist/
 │   ├── requirements-dev.txt
 │   ├── requirements-beats.txt
 │   ├── requirements-lyrics.txt
+│   ├── requirements-stems.txt
 │   ├── requirements-songformer.txt
 │   └── start_server.sh
 ├── frontend/                      # PyQt6 desktop app

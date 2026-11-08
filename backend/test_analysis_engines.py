@@ -419,3 +419,81 @@ def test_add_lyrics_is_a_noop_without_the_optional_package(monkeypatch):
     LibrosaAnalyzer.add_lyrics("song.mp3", result)
 
     assert "lyrics" not in result
+
+
+# --- vocal separation --------------------------------------------------------
+
+
+def test_stems_disabled_by_default(monkeypatch):
+    from analysis import stems
+
+    monkeypatch.delenv("SECTIONIST_STEMS", raising=False)
+    monkeypatch.setattr(stems, "stems_available", lambda: True)
+
+    assert stems.enabled() is False
+
+
+def test_stems_enabled_by_environment(monkeypatch):
+    from analysis import stems
+
+    monkeypatch.setenv("SECTIONIST_STEMS", "1")
+    monkeypatch.setattr(stems, "stems_available", lambda: True)
+
+    assert stems.enabled() is True
+
+
+def test_stems_need_the_package_even_when_switched_on(monkeypatch):
+    from analysis import stems
+
+    monkeypatch.setenv("SECTIONIST_STEMS", "1")
+    monkeypatch.setattr(stems, "stems_available", lambda: False)
+
+    assert stems.enabled() is False
+
+
+def test_vocals_path_is_none_when_disabled(monkeypatch):
+    from analysis import stems
+
+    monkeypatch.delenv("SECTIONIST_STEMS", raising=False)
+
+    assert stems.vocals_path("song.mp3") is None
+
+
+def test_transcribe_prefers_the_vocal_stem(monkeypatch):
+    from analysis import lyrics
+
+    seen = {}
+
+    class FakeModel:
+        def transcribe(self, path, vad_filter=False):
+            seen["path"] = path
+            seen["vad"] = vad_filter
+            return [], None
+
+    monkeypatch.setattr(lyrics, "lyrics_available", lambda: True)
+    monkeypatch.setattr(lyrics, "_get_model", lambda: FakeModel())
+    monkeypatch.setattr(lyrics, "vocals_path", lambda path: "/tmp/vocals.wav")
+
+    lyrics.transcribe("song.mp3")
+
+    assert seen["path"] == "/tmp/vocals.wav"
+    assert seen["vad"] is False
+
+
+def test_transcribe_falls_back_to_the_mix(monkeypatch):
+    from analysis import lyrics
+
+    seen = {}
+
+    class FakeModel:
+        def transcribe(self, path, vad_filter=False):
+            seen["path"] = path
+            return [], None
+
+    monkeypatch.setattr(lyrics, "lyrics_available", lambda: True)
+    monkeypatch.setattr(lyrics, "_get_model", lambda: FakeModel())
+    monkeypatch.setattr(lyrics, "vocals_path", lambda path: None)
+
+    lyrics.transcribe("song.mp3")
+
+    assert seen["path"] == "song.mp3"
