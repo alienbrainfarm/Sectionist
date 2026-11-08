@@ -101,24 +101,32 @@ class AudioPlayer:
                 self.is_paused = False
             else:
                 self.media_player.play()
-                self._apply_pending_seek()
+                self.is_playing = True
+                self._wait_until_playing(self.START_WAIT)
+                self.apply_pending_seek()
             self.is_playing = True
 
-    def _apply_pending_seek(self, timeout=1.0):
-        """Wait for VLC to start, then apply any seek made while stopped.
+    # VLC ignores seeks until the stream is running. Most files start within
+    # a few tens of milliseconds, so play() waits briefly for that; anything
+    # slower is picked up by apply_pending_seek() on the next playback tick,
+    # which keeps the window responsive.
+    START_WAIT = 0.15
 
-        VLC also ignores seeks in the moment between play() and the stream
-        starting, so waiting here (typically a few tens of milliseconds)
-        keeps a click made just after pressing play from being lost.
-        """
+    def _stream_running(self):
+        return self.media_player.get_state() == vlc.State.Playing
+
+    def _wait_until_playing(self, timeout):
         import time
 
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if self.media_player.get_state() == vlc.State.Playing:
-                break
+        while not self._stream_running() and time.monotonic() < deadline:
             time.sleep(0.01)
-        if self.pending_seek is not None and self.duration > 0:
+
+    def apply_pending_seek(self):
+        """Apply a seek VLC could not take yet. Cheap; call it on each tick."""
+        if self.pending_seek is None or not self.is_playing or self.duration <= 0:
+            return
+        if self._stream_running():
             target, self.pending_seek = self.pending_seek, None
             self.media_player.set_position(target / self.duration)
 
@@ -141,9 +149,11 @@ class AudioPlayer:
         """Set playback position in seconds."""
         if self.current_file and self.duration > 0:
             position = max(0.0, min(float(position), self.duration))
-            if not self.is_playing and not self.is_paused:
+            stopped = not self.is_playing and not self.is_paused
+            if stopped or (self.is_playing and not self._stream_running()):
                 self.pending_seek = position
                 return
+            self.pending_seek = None
             # VLC expects position as a ratio between 0.0 and 1.0
             self.media_player.set_position(position / self.duration)
 

@@ -19,6 +19,13 @@ def _timestamp(seconds):
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
+def _held_for(seconds):
+    """A length of time, written so it cannot be mistaken for a timestamp."""
+    seconds = max(0, round(float(seconds or 0)))
+    minutes, seconds = divmod(seconds, 60)
+    return f"{minutes}m {seconds:02d}s" if minutes else f"{seconds}s"
+
+
 def chord_vocabulary(chords):
     """(name, total seconds) for each chord, most-used first."""
     totals = {}
@@ -80,14 +87,14 @@ def format_details(analysis):
     chords = analysis.get("chords", [])
     vocabulary = chord_vocabulary(chords)
     if vocabulary:
-        html += _heading(f"Chords used ({len(chords)} changes)")
+        html += _heading(f"Chords used · time held ({len(chords)} changes)")
         chips = []
         for name, seconds in vocabulary:
             color = chord_color(name).name()
             chips.append(
                 f'<span style="background:{color}; color:#111318;'
                 f' font-weight:600;">&nbsp;{escape(name)}&nbsp;</span>'
-                f'<span style="color:{TEXT_DIM};">&nbsp;{_timestamp(seconds)}</span>'
+                f'<span style="color:{TEXT_DIM};">&nbsp;{_held_for(seconds)}</span>'
             )
         html += (
             '<p style="line-height:170%;">' + "&nbsp;&nbsp;&nbsp; ".join(chips) + "</p>"

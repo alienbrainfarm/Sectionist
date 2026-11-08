@@ -62,8 +62,10 @@ class HeaderBar(QWidget):
         self.title_label.setObjectName("SongTitle")
         self.meta_label = QLabel("Open a song to find its sections, key and chords")
         self.meta_label.setObjectName("SongMeta")
-        text.addWidget(self.title_label)
-        text.addWidget(self.meta_label)
+        # File names are user data: never let Qt guess they are rich text.
+        for label in (self.title_label, self.meta_label):
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            text.addWidget(label)
         layout.addLayout(text, 1)
 
         self.open_button = QPushButton("Open…")
@@ -210,6 +212,7 @@ class TransportBar(QWidget):
 
         self.section_label = QLabel("")
         self.section_label.setObjectName("Chip")
+        self.section_label.setTextFormat(Qt.TextFormat.PlainText)
         self.section_label.setVisible(False)
 
         for button in (self.play_button, self.stop_button):
@@ -292,7 +295,16 @@ def section_chords(chords, start, end, min_overlap=0.25):
 
 
 def bar_count(downbeats, start, end):
-    return sum(1 for beat in downbeats or [] if start <= float(beat) < end)
+    """Bars in a section, with its edges snapped to the nearest downbeat.
+
+    Detected boundaries rarely land exactly on a downbeat; counting only the
+    downbeats inside the section would drop a bar whenever it starts a little
+    after one.
+    """
+    beats = sorted(float(beat) for beat in downbeats or [])
+    gaps = sorted(b - a for a, b in zip(beats, beats[1:]))
+    slack = gaps[len(gaps) // 2] / 2 if gaps else 0.0
+    return sum(1 for beat in beats if start - slack <= beat < end - slack)
 
 
 class SectionsTable(QTableWidget):

@@ -522,6 +522,7 @@ class SectionistMainWindow(QMainWindow):
 
     def update_playback_position(self):
         """Update playback position indicators."""
+        self.audio_player.apply_pending_seek()
         if not self.slider_is_pressed:  # Only update if user is not dragging slider
             position = self.audio_player.get_position()
             self.position_slider.setValue(int(position))
@@ -714,7 +715,7 @@ class SectionistMainWindow(QMainWindow):
 
     def chord_list(self):
         """The live chord list inside the current analysis results."""
-        return self.analysis_results.get("analysis", {}).get("chords", [])
+        return (self.analysis_results or {}).get("analysis", {}).get("chords", [])
 
     def rename_chord(self, chord_idx, new_name):
         """Rename a chord and refresh the panel."""

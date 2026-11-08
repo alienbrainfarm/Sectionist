@@ -175,3 +175,93 @@ def test_timeline_paints_placeholder_and_hover(qapp):
     widget.drag_time_display = "0:12.000"
     widget.render(pixmap)
     assert not pixmap.isNull()
+
+
+def test_slow_vlc_start_does_not_freeze_and_seek_lands_on_a_tick():
+    import time
+
+    import vlc
+
+    from audio_player import AudioPlayer
+
+    class SlowVLC:
+        def __init__(self):
+            self.state = vlc.State.Opening
+            self.positions = []
+
+        def play(self):
+            pass
+
+        def get_state(self):
+            return self.state
+
+        def set_position(self, ratio):
+            self.positions.append(ratio)
+
+        def get_position(self):
+            return 0.0
+
+    player = AudioPlayer()
+    fake = SlowVLC()
+    player._media_player = fake
+    player.current_file = "song.wav"
+    player.duration = 100.0
+    player.set_position(25.0)
+
+    started = time.monotonic()
+    player.play()
+    assert time.monotonic() - started < 0.5  # the old wait was a full second
+    assert fake.positions == []  # VLC is not ready: keep the seek
+
+    player.set_position(50.0)  # a click while VLC is still opening
+    player.apply_pending_seek()
+    assert fake.positions == []
+
+    fake.state = vlc.State.Playing
+    player.apply_pending_seek()  # the next playback tick
+    assert fake.positions == [0.5]
+    assert player.pending_seek is None
+
+
+def test_bar_count_snaps_to_the_nearest_downbeat():
+    from panels import bar_count
+
+    downbeats = [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
+    assert bar_count(downbeats, 0.0, 8.0) == 4
+    # Detected boundaries a little after the downbeat still count the bar.
+    assert bar_count(downbeats, 2.1, 8.1) == 3
+    assert bar_count(downbeats, 1.9, 7.9) == 3
+    assert bar_count([], 0.0, 8.0) == 0
+
+
+def test_chord_totals_read_as_durations():
+    from results_text import _held_for, format_details
+
+    assert _held_for(72) == "1m 12s"
+    assert _held_for(9.6) == "10s"
+    html = format_details(PAYLOAD["analysis"])
+    assert "20s" in html and "0:20" not in html
+
+
+def test_file_names_are_shown_as_plain_text(qapp):
+    from PyQt6.QtCore import Qt
+
+    from panels import HeaderBar, TransportBar
+
+    header = HeaderBar()
+    header.set_song("<b>Rock & Roll</b>.mp3", "")
+    assert header.title_label.textFormat() == Qt.TextFormat.PlainText
+    assert header.meta_label.textFormat() == Qt.TextFormat.PlainText
+    assert TransportBar().section_label.textFormat() == Qt.TextFormat.PlainText
+
+
+def test_chord_edits_without_results_do_not_crash(qapp):
+    from main_window import SectionistMainWindow
+
+    window = SectionistMainWindow()
+    try:
+        assert window.analysis_results is None
+        assert window.chord_list() == []
+        window.rename_chord(0, "Am")
+    finally:
+        window.close()
