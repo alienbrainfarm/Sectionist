@@ -361,16 +361,24 @@ These are not documented in the model card and are worth recording:
 
 ### Reproducing
 
+The backend environment is enough; no separate one is needed.
+
 ```bash
-python3 -m venv .venv-songformer
-.venv-songformer/bin/pip install torch torchaudio "transformers>=4.45,<5" \
-    x-transformers einops soundfile numpy scipy librosa omegaconf ema-pytorch muq msaf
-HF_HOME="$PWD/.hf-cache" .venv-songformer/bin/python -c \
-  "from huggingface_hub import snapshot_download; \
-   snapshot_download('ASLP-lab/SongFormer', local_dir='.hf-cache/SongFormer')"
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt -r requirements-songformer.txt
+python -c "from huggingface_hub import snapshot_download; \
+  snapshot_download('ASLP-lab/SongFormer', local_dir='../.hf-cache/SongFormer')"
 ```
 
-Both the environment and the weights are gitignored.
+Then, from the repository root:
+
+```bash
+HF_HOME="$PWD/.hf-cache" backend/venv/bin/python \
+    tools/spike_songformer.py song.mp3 --device cpu
+```
+
+The weights are gitignored.
 
 ## References
 

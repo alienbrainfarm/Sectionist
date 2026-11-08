@@ -20,12 +20,9 @@ htmlcov/
 # Misc
 *.swp
 
-# Local model experiments (not part of the app)
-.venv-songformer/
+# Local model caches
 .hf-cache/
+.torch-cache/
 
 # Local test media (not distributed)
 media/
-
-# Local model caches
-.torch-cache/
