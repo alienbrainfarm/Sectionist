@@ -143,7 +143,8 @@ pip install -r requirements-beats.txt   # PyTorch + Beat This!, ~80 MB of weight
 | `TORCH_HOME` | `~/.cache/torch` | Where Beat This! keeps its 77 MB checkpoint |
 
 The frontend honours `SECTIONIST_BACKEND_URL`, so the app can run on a laptop
-while the analysis runs on a desktop GPU elsewhere on your network.
+while the analysis runs on a desktop GPU elsewhere on your network. See
+[Running the backend on another machine](docs/REMOTE_BACKEND.md).
 
 ### Measured performance
 
@@ -370,6 +371,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 - [Audio playback](docs/AUDIO_PLAYBACK.md)
 - [Section editing UI](docs/SECTION_EDITING_UI.md)
 - [Model research and measurements](docs/MODEL_RESEARCH.md)
+- [Running the backend on another machine](docs/REMOTE_BACKEND.md)
 - [Segmentation improvements](docs/IMPROVED_SEGMENTATION.md)
 
 ## Troubleshooting
