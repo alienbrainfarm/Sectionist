@@ -87,7 +87,8 @@ def format_details(analysis):
     chords = analysis.get("chords", [])
     vocabulary = chord_vocabulary(chords)
     if vocabulary:
-        html += _heading(f"Chords used · time held ({len(chords)} changes)")
+        source = " · from stems" if analysis.get("chord_source") == "stems" else ""
+        html += _heading(f"Chords used · time held{source} ({len(chords)} changes)")
         chips = []
         for name, seconds in vocabulary:
             color = chord_color(name).name()

@@ -11,5 +11,12 @@ requests>=2.31.0
 # Audio file metadata
 mutagen>=1.47.0
 
+# Stem playback: stems are decoded with soundfile and mixed live with numpy,
+# then played through sounddevice (PortAudio). On Linux install PortAudio
+# first: sudo apt install libportaudio2
+numpy>=1.24.0
+soundfile>=0.12.0
+sounddevice>=0.4.6
+
 # Development and testing
 pytest>=7.0.0

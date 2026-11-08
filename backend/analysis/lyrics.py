@@ -5,9 +5,10 @@ Whisper was trained for speech, so two adjustments matter for songs:
 - **Voice activity detection is off.** faster-whisper's VAD is tuned for speech
   and discards singing over a backing track; with it on, two of the test tracks
   produced no lyrics at all.
-- **The mix is transcribed directly.** Separating vocals first would help, but
-  it adds a large model and minutes of CPU time. The `small` model copes well
-  enough with vocals-forward material.
+- **The vocal stem is transcribed when there is one.** With Demucs installed
+  (stems.py), Whisper hears the isolated vocals instead of the band; without
+  it, or with ``SECTIONIST_STEMS=off``, it transcribes the mix, which the
+  `small` model copes with on vocals-forward material.
 
 Quality depends heavily on the mix: a sparse arrangement transcribes closely,
 dense productions produce approximate lines. Bigger models help and are a
@@ -74,7 +75,7 @@ def transcribe(file_path):
 
     model = _get_model()
 
-    # Optionally transcribe an isolated vocal stem instead of the mix.
+    # The isolated vocal stem when stems are on, otherwise the mix.
     source = vocals_path(file_path) or file_path
     segments, _info = model.transcribe(str(source), vad_filter=False)
     return [

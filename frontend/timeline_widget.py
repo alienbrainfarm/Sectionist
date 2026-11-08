@@ -48,6 +48,7 @@ class TimelineWidget(QWidget):
     section_split = pyqtSignal(int, float)  # Emit section index and split position
     chord_renamed = pyqtSignal(int, str)  # Emit chord index and new name
     chord_boundary_moved = pyqtSignal(int, float)  # Emit boundary index and time
+    position_changed = pyqtSignal(float)  # playhead moved (playback or seek)
 
     def __init__(self):
         super().__init__()
@@ -194,6 +195,7 @@ class TimelineWidget(QWidget):
         """Set the current playback position."""
         self.current_position = position
         self.update()
+        self.position_changed.emit(position)
 
     def current_section(self):
         """Index of the section containing the playhead, or -1."""

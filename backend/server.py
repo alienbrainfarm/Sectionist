@@ -8,6 +8,9 @@ frontend to communicate with the Python audio analysis backend.
 Endpoints:
 - POST /analyze - Analyze an audio file and return structured results
 - GET /health - Health check endpoint
+- POST /stems - Start splitting an audio file into stems (Demucs)
+- GET /stems/<job_id> - Progress of a stem job
+- GET /stems/<job_id>/<stem> - Download one finished stem as FLAC
 - GET /status/<task_id> - Check analysis status (future enhancement)
 
 The server runs locally and processes audio files for song structure analysis,
@@ -19,9 +22,10 @@ import sys
 import threading
 import traceback
 import tempfile
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 from analysis import EngineUnavailable, available_engines, get_analyzer
+from analysis import stem_jobs, stems
 
 app = Flask(__name__)
 
@@ -103,8 +107,70 @@ def health_check():
             "backend": "python-librosa",
             "engine": engines["active"],
             "engines": engines,
+            "stems": stems_status(),
         }
     )
+
+
+def stems_status():
+    """What the stem splitter can do here, for the frontend's menu."""
+    return {
+        "available": stems.stems_available(),
+        "models": stems.MODELS,
+        "default": stems.DEFAULT_MODEL,
+    }
+
+
+def start_stem_job(file_path, model):
+    """Kept as a module-level function so tests can run jobs inline."""
+    return stem_jobs.start_job(file_path, model)
+
+
+@app.route("/stems", methods=["POST"])
+def split_stems():
+    """Start separating an uploaded file into stems; poll the returned job."""
+    file = request.files.get("audio")
+    if file is None or file.filename == "":
+        return jsonify({"error": "No audio file provided"}), 400
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Unsupported file format"}), 400
+    model = request.form.get("model") or stems.DEFAULT_MODEL
+    if model not in stems.MODELS:
+        return jsonify({"error": f"Unknown stem model: {model}"}), 400
+    if not stems.stems_available():
+        message = "Stem splitting needs Demucs: pip install -r requirements-stems.txt"
+        return jsonify({"error": message}), 503
+
+    # A unique name: two uploads of songs with the same file name must not
+    # overwrite each other while both jobs are queued.
+    suffix = "." + file.filename.rsplit(".", 1)[1].lower()
+    handle, temp_path = tempfile.mkstemp(suffix=suffix, dir=UPLOAD_FOLDER)
+    os.close(handle)
+    file.save(temp_path)
+
+    try:
+        job = start_stem_job(temp_path, model)
+    except stem_jobs.TooManyJobs as busy:
+        return jsonify({"error": str(busy)}), 429
+    return jsonify(job.info()), 202
+
+
+@app.route("/stems/<job_id>", methods=["GET"])
+def stem_job_status(job_id):
+    job = stem_jobs.get_job(job_id)
+    if job is None:
+        return jsonify({"error": "Unknown stem job"}), 404
+    return jsonify(job.info())
+
+
+@app.route("/stems/<job_id>/<stem>", methods=["GET"])
+def download_stem(job_id, stem):
+    job = stem_jobs.get_job(job_id)
+    if job is None or job.status != "done" or stem not in job.stems:
+        return jsonify({"error": "No such stem"}), 404
+    if not os.path.exists(job.stems[stem]):  # pruned from the cache since
+        return jsonify({"error": "Stem expired; split the song again"}), 404
+    return send_file(job.stems[stem], mimetype="audio/flac")
 
 
 @app.route("/analyze", methods=["POST"])
@@ -159,9 +225,15 @@ def analyze_audio():
                     "sections": results["sections"],
                     "beats_detected": results["beats_detected"],
                     "chords": results["chords"],
+                    "chord_source": results.get("chord_source", "mix"),
                     "engine": results.get("engine", "librosa"),
                 },
             }
+            # Present only when their optional models are installed. Without
+            # this the frontend never received bar lines or lyrics.
+            for optional in ("downbeats", "lyrics"):
+                if results.get(optional):
+                    response_data["analysis"][optional] = results[optional]
 
             print(f"Analysis completed successfully for {filename}")
             return jsonify(response_data)
@@ -222,6 +294,7 @@ def main():
     print(f"   GET  http://{host}:{port}/health")
     print(f"   POST http://{host}:{port}/analyze")
     print(f"   GET  http://{host}:{port}/formats")
+    print(f"   POST http://{host}:{port}/stems")
     print()
     print("💡 To test the server:")
     print(f"   curl http://{host}:{port}/health")

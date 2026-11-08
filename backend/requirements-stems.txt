@@ -1,11 +1,19 @@
-# Optional: vocal separation before transcription (Demucs).
+# Stem separation (Demucs). Installed by start_server.sh and setup.sh.
 #
 #   pip install -r requirements-stems.txt
-#   SECTIONIST_STEMS=1 ./start_server.sh
 #
-# Off by default: separation runs at roughly 2.3x realtime on CPU, so a
-# four-minute song costs about 105 seconds of extra work. The measured gain to
-# lyrics was marginal on the tracks tested. Model weights are downloaded on
-# first use.
+# With this installed, analysis reads chords from the accompaniment and bass
+# stems and lyrics from the vocal stem, and the frontend can split, mute and
+# solo stems. Without it everything still works from the full mix.
+#
+# Separation takes a few seconds on a GPU and roughly half the song's length
+# on a CPU (about 105 seconds for four minutes). To analyse from the mix even
+# with Demucs installed:
+#
+#   SECTIONIST_STEMS=off ./start_server.sh
+#
+# For a GPU, install CUDA PyTorch before this file (see docs/REMOTE_BACKEND.md),
+# or pip resolves the CPU build. Model weights download on first use. 4.1 is the
+# first release on PyPI with the demucs.api module used here.
 
-demucs>=4.0
+demucs>=4.1
