@@ -134,7 +134,7 @@ for section in sections:
 ### Server API
 The improved algorithm is automatically used by the Flask server:
 ```bash
-curl -X POST -F "audio=@song.mp3" http://127.0.0.1:5000/analyze
+curl -X POST -F "audio=@song.mp3" http://127.0.0.1:8765/analyze
 ```
 
 ### Advanced Configuration

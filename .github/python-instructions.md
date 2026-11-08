@@ -414,7 +414,7 @@ def test_backend_api_integration():
     
     with open(test_file, 'rb') as f:
         response = requests.post(
-            'http://localhost:5000/analyze',
+            'http://localhost:8765/analyze',
             files={'file': f}
         )
     
@@ -439,7 +439,7 @@ class Config:
     
     # Backend configuration
     BACKEND_HOST: str = os.getenv('BACKEND_HOST', '127.0.0.1')
-    BACKEND_PORT: int = int(os.getenv('BACKEND_PORT', '5000'))
+    BACKEND_PORT: int = int(os.getenv('BACKEND_PORT', '8765'))
     
     # Audio processing configuration
     DEFAULT_SAMPLE_RATE: int = int(os.getenv('SAMPLE_RATE', '22050'))

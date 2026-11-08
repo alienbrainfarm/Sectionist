@@ -43,7 +43,7 @@ optional download. The app detects which is available and picks the better one.
 | Layer | Choice |
 | --- | --- |
 | Frontend | PyQt6 desktop app |
-| Backend | Flask, served locally on `127.0.0.1:5000` |
+| Backend | Flask, served locally on `127.0.0.1:8765` |
 | Audio analysis | librosa (tempo, key, chords) |
 | Segmentation | SongFormer, optional; librosa heuristics as fallback |
 | Beat tracking | Beat This!, optional |
@@ -68,7 +68,7 @@ cd backend
 ```
 
 This creates a virtual environment, installs dependencies and serves
-`http://127.0.0.1:5000`. On this path you get the heuristic engine.
+`http://127.0.0.1:8765`. On this path you get the heuristic engine.
 
 ### 2. Frontend
 
@@ -127,7 +127,7 @@ Restart the backend. `GET /health` confirms which engine is live:
 | `SECTIONIST_DEVICE` | `auto` | `auto` (CUDA if present, else CPU), `cpu`, `mps`, `cuda` |
 | `SECTIONIST_MODEL_DIR` | `.hf-cache/SongFormer` | Checkpoint location |
 | `SECTIONIST_LABEL_MODEL` | `.hf-cache/label_model.npz` | Trained correction model |
-| `SECTIONIST_HOST` / `SECTIONIST_PORT` | `127.0.0.1` / `5000` | Where the backend listens |
+| `SECTIONIST_HOST` / `SECTIONIST_PORT` | `127.0.0.1` / `8765` | Where the backend listens |
 | `SECTIONIST_DEBUG` | off | `1` enables Flask's reloader and debugger |
 | `TORCH_HOME` | `~/.cache/torch` | Where Beat This! keeps its 77 MB checkpoint |
 
@@ -357,19 +357,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
    cd backend && source venv/bin/activate
    pip install --force-reinstall librosa
    ```
-2. **"Port already in use"** — on macOS the AirPlay Receiver holds port 5000.
-   Either disable it or run the backend elsewhere and point the frontend at it:
+2. **"Port already in use"** — something else holds 8765. Pick another port and
+   point the frontend at it:
    ```bash
    SECTIONIST_PORT=5055 ./start_server.sh
    # other terminal:
    SECTIONIST_BACKEND_URL=http://127.0.0.1:5055 python sectionist_gui.py
    ```
+   (Port 5000 is avoided by default because macOS hands it to the AirPlay
+   Receiver, which made the old default flaky on Macs.)
 3. **Missing dependencies** — `./start_server.sh` reinstalls everything.
 
 ### SongFormer
 
 1. **`auto` still reports `librosa`** — the package or the checkpoint is missing.
-   Check `curl http://127.0.0.1:5000/health`; the `available` list shows what the
+   Check `curl http://127.0.0.1:8765/health`; the `available` list shows what the
    backend can actually see.
 2. **`Could not initialise` / import errors after a manual install** — the model
    requires **transformers < 5**; 5.x breaks MuQ's constructor. The pinned
@@ -389,7 +391,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 2. **"Could not initialise VLC"** — install VLC. Debian/Ubuntu:
    `sudo apt-get install libvlc5 libvlccore9`; macOS: `brew install --cask vlc`.
 3. **"Cannot connect to backend server"** — start the backend and check
-   `curl http://127.0.0.1:5000/health`.
+   `curl http://127.0.0.1:8765/health`.
 4. **Linux Qt issues** — `sudo apt-get install libgl1 libegl1 libxkbcommon0`.
 
 ### General

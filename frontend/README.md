@@ -135,8 +135,8 @@ pip install PyQt6
 ```
 
 ### "Cannot connect to backend server"
-- Make sure the backend is running on port 5000
-- Check that `http://127.0.0.1:5000/health` returns a response
+- Make sure the backend is running on port 8765
+- Check that `http://127.0.0.1:8765/health` returns a response
 
 ### Audio playback issues
 - Make sure the VLC media player is installed so `libvlc` is available to python-vlc

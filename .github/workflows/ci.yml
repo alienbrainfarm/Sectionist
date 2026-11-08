@@ -129,11 +129,11 @@ jobs:
           cd backend
           python server.py &
           for _ in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:5000/health > /dev/null; then
+            if curl -fsS http://127.0.0.1:8765/health > /dev/null; then
               break
             fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:5000/health
-          curl -fsS http://127.0.0.1:5000/formats
+          curl -fsS http://127.0.0.1:8765/health
+          curl -fsS http://127.0.0.1:8765/formats
           python smoke_test.py

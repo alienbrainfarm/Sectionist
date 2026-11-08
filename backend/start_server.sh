@@ -52,7 +52,7 @@ fi
 echo ""
 echo "🚀 Starting Sectionist Backend Server..."
 echo ""
-echo "📡 The server will be available at: http://127.0.0.1:5000"
+echo "📡 The server will be available at: http://127.0.0.1:${SECTIONIST_PORT:-8765}"
 echo "🛑 To stop the server, press Ctrl+C"
 echo ""
 
