@@ -83,6 +83,7 @@ def test_display_results_populates_panels_and_timeline(qapp):
                 {"name": "Verse 1", "start": 20.0, "end": 60.0, "confidence": 0.7},
             ],
             "beats_detected": 120,
+            "downbeats": [0.0, 20.0, 40.0],
             "chords": [{"name": "C", "start": 0.0, "end": 4.0, "confidence": 0.8}],
         },
     }
@@ -96,6 +97,7 @@ def test_display_results_populates_panels_and_timeline(qapp):
         assert "Verse 1" in sections_text
         assert len(window.timeline.sections) == 2
         assert len(window.timeline.chords) == 1
+        assert window.timeline.downbeats == [0.0, 20.0, 40.0]
 
         details_text = window.details_text.toPlainText()
         assert "120.0 BPM" in details_text
@@ -284,3 +286,21 @@ def test_dragging_a_chord_boundary_keeps_chords_contiguous(qapp):
         assert chords[0]["end"] == chords[1]["start"]
     finally:
         window.close()
+
+
+def test_bar_lines_render(qapp):
+    from PyQt6.QtGui import QPixmap
+
+    from timeline_widget import TimelineWidget
+
+    widget = TimelineWidget()
+    widget.resize(800, 160)
+    widget.set_duration(60.0)
+    widget.set_sections([{"name": "Verse", "start": 0.0, "end": 60.0}])
+    widget.set_downbeats([index * 2.0 for index in range(1, 30)])
+
+    pixmap = QPixmap(800, 160)
+    widget.render(pixmap)
+
+    assert len(widget.downbeats) == 29
+    assert not pixmap.isNull()

@@ -19,7 +19,7 @@ optional download. The app detects which is available and picks the better one.
 
 - 🎵 **Song structure segmentation** — labelled sections, not just boundaries
 - 🎯 **Section confidence** — the model reports how sure it is, per section
-- 📏 **Bar-aligned boundaries** — sections snap to detected downbeats
+- 📏 **Bar-aligned boundaries** — sections snap to detected downbeats, and bars are drawn in the timeline
 - 🎹 **Key and tempo detection**, including key changes
 - 🎸 **Chord detection** — beat-synchronous, with musical continuity, drawn on the timeline
 - 📊 **Interactive timeline** — click, drag, split, join, rename sections; retype or re-boundary chords
@@ -110,6 +110,16 @@ Restart the backend. `GET /health` confirms which engine is live:
  "engines": {"configured": "auto", "active": "songformer",
              "available": ["librosa", "songformer"]}}
 ```
+
+Beat tracking is separate and much smaller. Install it on its own to get bar
+lines and downbeat snapping without the segmentation model:
+
+```bash
+cd backend
+pip install -r requirements-beats.txt   # PyTorch + Beat This!, ~80 MB of weights
+```
+
+`requirements-songformer.txt` already includes it.
 
 ### Choosing an engine
 
@@ -204,6 +214,7 @@ Sectionist/
 │   ├── test_*.py                  # pytest suite
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
+│   ├── requirements-beats.txt
 │   ├── requirements-songformer.txt
 │   └── start_server.sh
 ├── frontend/                      # PyQt6 desktop app
@@ -326,7 +337,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 - [x] Learning from user corrections
 - [x] Chord track on the timeline
 - [x] Chord editing (rename, drag boundaries)
-- [ ] Bar lines drawn in the timeline
+- [x] Bar lines drawn in the timeline
 - [ ] Chord vocabulary beyond major/minor triads
 - [ ] Key change visualisation
 - [ ] Local database for song modifications

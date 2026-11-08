@@ -49,6 +49,7 @@ class TimelineWidget(QWidget):
         super().__init__()
         self.sections = []
         self.chords = []
+        self.downbeats = []
         self.duration = 0
         self.current_position = 0
         self.setMinimumHeight(130)
@@ -108,6 +109,11 @@ class TimelineWidget(QWidget):
     def set_sections(self, sections: List[Dict]):
         """Set the song sections to display."""
         self.sections = sections
+        self.update()
+
+    def set_downbeats(self, downbeats: List[float]):
+        """Set the bar lines drawn behind the sections."""
+        self.downbeats = list(downbeats or [])
         self.update()
 
     def set_chords(self, chords: List[Dict]):
@@ -280,6 +286,20 @@ class TimelineWidget(QWidget):
                 seconds = int(t % 60)
                 time_text = f"{minutes}:{seconds:02d}"
                 painter.drawText(x + 2, 12, time_text)
+
+        # Draw bar lines across the section area, skipping ones too close
+        # together to be legible.
+        if self.duration > 0 and self.downbeats and section_bottom > 20:
+            painter.setPen(QPen(QColor(0, 0, 0, 45), 1))
+            previous_x = None
+            for beat in self.downbeats:
+                if beat <= 0 or beat >= self.duration:
+                    continue
+                x = int((beat / self.duration) * rect.width())
+                if previous_x is not None and x - previous_x < 3:
+                    continue
+                painter.drawLine(x, 20, x, section_bottom)
+                previous_x = x
 
         # Draw the chord track beneath the sections
         if self.duration > 0 and self.chords:

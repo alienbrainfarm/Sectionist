@@ -1,0 +1,12 @@
+# Optional: beat tracking without the segmentation model.
+#
+#   pip install -r requirements-beats.txt
+#
+# Enables the beat count, downbeat snapping and the bar lines drawn in the
+# timeline. Beat This! is MIT for both code and weights, and does not use
+# madmom's patented DBN (dbn=False).
+#
+# requirements-songformer.txt already includes these.
+
+torch>=2.7
+beat-this
