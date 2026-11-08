@@ -38,32 +38,53 @@ _analyzer = None
 _analyzer_lock = threading.Lock()
 
 
-def analyze_audio_file(file_path):
-    """Analyse a file with the configured engine.
+def current_analyzer():
+    """The analyser actually in use, created once and reused.
 
-    Kept as a module-level function so tests can patch it and so the model is
-    created once and reused across requests.
+    Everything that reports or performs analysis must go through this. Building
+    a second analyser just to describe the first one made /health disagree with
+    what /analyze was really using.
     """
     global _analyzer
     if _analyzer is None:
         with _analyzer_lock:
             if _analyzer is None:
                 _analyzer = get_analyzer()
-    return _analyzer.analyze(file_path)
+    return _analyzer
+
+
+def analyze_audio_file(file_path):
+    """Analyse a file with the configured engine.
+
+    Kept as a module-level function so tests can patch it.
+    """
+    return current_analyzer().analyze(file_path)
 
 
 def engine_status():
-    """Report the configured and resolved engine without loading a model."""
+    """Describe the engine that will actually handle requests."""
     configured = os.environ.get("SECTIONIST_ENGINE", "auto")
     try:
-        active = get_analyzer().name
+        analyzer = current_analyzer()
     except EngineUnavailable:
-        active = "unavailable"
-    return {
+        return {
+            "configured": configured,
+            "active": "unavailable",
+            "available": available_engines(),
+        }
+
+    status = {
         "configured": configured,
-        "active": active,
+        "active": analyzer.name,
         "available": available_engines(),
     }
+
+    # Model engines expose a device; worth reporting, because "the GPU feels
+    # fast" is otherwise indistinguishable from "the model is not running".
+    device = getattr(analyzer, "device", None)
+    if device:
+        status["device"] = device
+    return status
 
 
 def allowed_file(filename):
@@ -74,13 +95,14 @@ def allowed_file(filename):
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint to verify server is running."""
+    engines = engine_status()
     return jsonify(
         {
             "status": "healthy",
             "version": "1.0.0",
             "backend": "python-librosa",
-            "engine": engine_status()["active"],
-            "engines": engine_status(),
+            "engine": engines["active"],
+            "engines": engines,
         }
     )
 
