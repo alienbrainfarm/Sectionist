@@ -4,10 +4,20 @@ These run without torch installed: the SongFormer engine imports it lazily and
 the registry reports it as unavailable.
 """
 
+import numpy as np
 import pytest
 
 from analysis import EngineUnavailable, available_engines, get_analyzer
 from analysis.librosa_engine import LibrosaAnalyzer
+from analysis.calibration import (
+    CLASS_ORDER,
+    SoftmaxRegression,
+    apply_calibration,
+    canonical_label,
+    load_corrections,
+    reduce_probabilities,
+    section_features,
+)
 from analysis.sections import (
     display_names,
     merge_consecutive,
@@ -228,3 +238,106 @@ def test_beats_unavailable_returns_none(monkeypatch):
     monkeypatch.setattr("analysis.beats.beats_available", lambda: False)
 
     assert detect_beats("whatever.mp3") == (None, None)
+
+
+# --- label model -------------------------------------------------------------
+
+
+def test_canonical_label_normalises_display_names():
+    assert canonical_label("Verse 2") == "verse"
+    assert canonical_label("Pre-Chorus") == "pre-chorus"
+    assert canonical_label("Instrumental") == "inst"
+    assert canonical_label("  CHORUS 1 ") == "chorus"
+
+
+def test_reduce_probabilities_keeps_canonical_classes():
+    id_to_label = {0: "intro", 1: "verse", 2: "chorus", 3: "inst", 8: "prechorus"}
+    probabilities = np.zeros((2, 9))
+    probabilities[:, 2] = 0.5  # chorus
+    probabilities[:, 8] = 0.25  # prechorus alias
+    probabilities[:, 0] = 0.25  # intro
+
+    reduced = reduce_probabilities(probabilities, id_to_label)
+
+    assert reduced.shape == (2, len(CLASS_ORDER))
+    assert reduced.sum(axis=1).tolist() == [1.0, 1.0]
+    assert reduced[0, CLASS_ORDER.index("chorus")] == 0.5
+    assert reduced[0, CLASS_ORDER.index("pre-chorus")] == 0.25
+
+
+def test_section_features_shape_and_position():
+    probabilities = np.full((100, len(CLASS_ORDER)), 1 / len(CLASS_ORDER))
+    segments = [
+        {"start": 0.0, "end": 5.0},
+        {"start": 5.0, "end": 20.0},
+    ]
+
+    features = section_features(probabilities, 10, segments, duration=20.0)
+
+    assert features.shape == (2, len(CLASS_ORDER) + 5)
+    # relative position of the second section
+    assert features[1, len(CLASS_ORDER) + 1] == 0.25
+
+
+def test_softmax_regression_learns_a_separable_problem():
+    rng = np.random.default_rng(0)
+    features = np.vstack([rng.normal(0.0, 0.1, (30, 4)), rng.normal(3.0, 0.1, (30, 4))])
+    targets = [0] * 30 + [1] * 30
+
+    model = SoftmaxRegression(epochs=400).fit(features, targets)
+
+    predicted = model.predict_proba(features).argmax(axis=1)
+    assert (predicted == np.array(targets)).mean() > 0.95
+
+
+def test_softmax_regression_round_trips(tmp_path):
+    rng = np.random.default_rng(1)
+    features = rng.normal(size=(20, 3))
+    targets = [index % 2 for index in range(20)]
+    model = SoftmaxRegression(epochs=50).fit(features, targets)
+
+    path = tmp_path / "model.npz"
+    model.save(path)
+    restored = SoftmaxRegression.load(path)
+
+    assert np.allclose(model.predict_proba(features), restored.predict_proba(features))
+
+
+def test_apply_calibration_overrides_labels():
+    class FixedModel:
+        def predict_proba(self, features):
+            distribution = np.zeros((len(features), len(CLASS_ORDER)))
+            distribution[:, CLASS_ORDER.index("pre-chorus")] = 0.9
+            distribution[:, CLASS_ORDER.index("chorus")] = 0.1
+            return distribution
+
+    segments = [{"start": 0.0, "end": 10.0, "label": "chorus"}]
+    probabilities = np.full((100, len(CLASS_ORDER)), 1 / len(CLASS_ORDER))
+
+    apply_calibration(segments, probabilities, 10, FixedModel(), duration=10.0)
+
+    assert segments[0]["label"] == "pre-chorus"
+    assert segments[0]["confidence"] == pytest.approx(0.9)
+
+
+def test_load_corrections_reads_saved_analysis(tmp_path):
+    import json
+
+    path = tmp_path / "analysis.json"
+    path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "analysis": {
+                    "sections": [
+                        {"name": "Verse 1", "start": 0.0, "end": 12.0},
+                        {"name": "Pre-Chorus", "start": 12.0, "end": 24.0},
+                    ]
+                },
+            }
+        )
+    )
+
+    sections = load_corrections(path)
+
+    assert [section["label"] for section in sections] == ["verse", "pre-chorus"]

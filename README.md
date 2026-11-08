@@ -105,6 +105,23 @@ With SongFormer installed, sections also carry the model's own confidence for
 its label, and boundaries are snapped to detected downbeats so sections line up
 with bars (beat tracking uses Beat This!, whose code and weights are MIT).
 
+### Learning from corrections
+
+Sections you fix in the app and save are training data. A small label model can
+be fitted on top of the network's frozen outputs:
+
+```bash
+# See what would be used, without training
+python tools/train_label_model.py --songs path/to/saved/songs --dry-run
+
+# Train; the backend picks it up on the next start
+python tools/train_label_model.py --songs path/to/saved/songs
+```
+
+This is a calibration layer over the model's per-section probabilities, not a
+retraining of SongFormer. It needs a few dozen corrected sections to be worth
+anything.
+
 `GET /health` reports which engine is active. See
 [docs/MODEL_RESEARCH.md](docs/MODEL_RESEARCH.md) for the evaluation behind this
 and the known limitations.

@@ -8,6 +8,10 @@ tempo, key and chord estimates still come from the librosa pipeline.
 Beat This! is used, when installed, for the beat count and to snap section
 boundaries onto downbeats so sections line up with bars.
 
+A label model trained on corrected songs (see ``tools/train_label_model.py``)
+can be loaded to adjust the network's labels; it is optional and absent by
+default.
+
 Optional: torch and transformers are imported lazily, so the backend runs
 without them. See docs/MODEL_RESEARCH.md for setup and measured timings.
 """
@@ -22,15 +26,18 @@ import numpy as np
 
 from .base import Analyzer
 from .beats import beats_available, detect_beats
+from .calibration import SoftmaxRegression, apply_calibration, reduce_probabilities
 from .device import resolve_device
 from .librosa_engine import LibrosaAnalyzer
-from .sections import snap_boundaries, to_sections
+from .sections import finalize_sections, prepare_segments, snap_boundaries
 
 SAMPLE_RATE = 24000
 MODEL_DIR_ENV = "SECTIONIST_MODEL_DIR"
+LABEL_MODEL_ENV = "SECTIONIST_LABEL_MODEL"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL_DIR = REPO_ROOT / ".hf-cache" / "SongFormer"
+DEFAULT_LABEL_MODEL = REPO_ROOT / ".hf-cache" / "label_model.npz"
 
 _models = {}
 _model_lock = threading.Lock()
@@ -39,11 +46,29 @@ _inference_lock = threading.Lock()
 # Filled in by the post-processing hook installed on the loaded model.
 _capture = {}
 
+_label_model = None
+_label_model_loaded = False
+
 
 def model_dir():
     """Directory holding the SongFormer checkpoint."""
     configured = os.environ.get(MODEL_DIR_ENV)
     return Path(configured).expanduser() if configured else DEFAULT_MODEL_DIR
+
+
+def label_model_path():
+    configured = os.environ.get(LABEL_MODEL_ENV)
+    return Path(configured).expanduser() if configured else DEFAULT_LABEL_MODEL
+
+
+def load_label_model():
+    """Load the optional correction model, or return None."""
+    global _label_model, _label_model_loaded
+    if not _label_model_loaded:
+        path = label_model_path()
+        _label_model = SoftmaxRegression.load(path) if path.exists() else None
+        _label_model_loaded = True
+    return _label_model
 
 
 def songformer_available():
@@ -68,8 +93,8 @@ def _install_logit_capture(model):
     The checkpoint's forward pass builds per-frame label logits and then throws
     them away, keeping only the arg-max per section. Hooking its post-processing
     call is the least invasive way to recover the probabilities, which we need
-    to report a per-section confidence. If the hook cannot be installed the
-    engine still works, just without confidence values.
+    for the per-section confidence and for the label model. If the hook cannot
+    be installed the engine still works, just without either.
     """
     try:
         module = sys.modules[type(model).__module__]
@@ -93,19 +118,17 @@ def _install_logit_capture(model):
         _capture.clear()
 
 
-def _annotate(segments, id_to_label):
-    """Add a confidence (and the probability-based label) to each segment."""
-    logits = _capture.get("function_logits")
-    frame_rate = _capture.get("frame_rate")
-    if logits is None or not frame_rate:
+def _annotate(segments, probabilities, frame_rate, id_to_label):
+    """Add the probability-based label and confidence to each segment."""
+    if probabilities is None or not frame_rate:
         return segments
 
-    probabilities = _softmax(logits)
     annotated = []
     for segment in segments:
         start = max(0, int(round(segment["start"] * frame_rate)))
         end = min(
-            len(probabilities), max(start + 1, int(round(segment["end"] * frame_rate)))
+            len(probabilities),
+            max(start + 1, int(round(segment["end"] * frame_rate))),
         )
         if end <= start:
             annotated.append(dict(segment))
@@ -168,6 +191,36 @@ class SongFormerAnalyzer(Analyzer):
     def _model(self):
         return _load_model(self.directory, self.device)
 
+    def _infer(self, file_path):
+        """Run the model once and return everything derived from that run."""
+        import librosa
+        import torch
+
+        audio, _ = librosa.load(file_path, sr=SAMPLE_RATE, mono=True)
+        tensor = torch.from_numpy(audio).to(self.device)
+
+        model, id_to_label = self._model()
+        with _inference_lock:
+            _capture.clear()
+            with torch.inference_mode():
+                segments = model(tensor)
+            logits = _capture.get("function_logits")
+            frame_rate = _capture.get("frame_rate")
+            _capture.clear()
+
+        probabilities = _softmax(logits) if logits is not None else None
+        reduced = (
+            reduce_probabilities(probabilities, id_to_label)
+            if probabilities is not None
+            else None
+        )
+        return segments, probabilities, reduced, frame_rate, id_to_label
+
+    def frame_probabilities(self, file_path):
+        """Return ``(reduced_probabilities, frame_rate)`` for tooling/training."""
+        _, _, reduced, frame_rate, _ = self._infer(file_path)
+        return reduced, frame_rate
+
     def _detect_beats(self, file_path):
         if not beats_available():
             return None, None
@@ -178,24 +231,20 @@ class SongFormerAnalyzer(Analyzer):
             return None, None
 
     def analyze(self, file_path: str) -> dict:
-        import librosa
-        import torch
-
         # Tempo, key and chords still come from the existing pipeline.
         result = self._baseline.analyze(file_path)
 
-        audio, _ = librosa.load(file_path, sr=SAMPLE_RATE, mono=True)
-        tensor = torch.from_numpy(audio).to(self.device)
+        segments, probabilities, reduced, frame_rate, id_to_label = self._infer(
+            file_path
+        )
+        annotated = _annotate(segments, probabilities, frame_rate, id_to_label)
+        prepared = prepare_segments(annotated)
 
-        model, id_to_label = self._model()
-        with _inference_lock:
-            _capture.clear()
-            with torch.inference_mode():
-                predicted = model(tensor)
-            predicted = _annotate(predicted, id_to_label)
-            _capture.clear()
+        model = load_label_model()
+        if model is not None and reduced is not None:
+            apply_calibration(prepared, reduced, frame_rate, model, result["duration"])
 
-        sections = to_sections(predicted)
+        sections = finalize_sections(prepared)
 
         beats, downbeats = self._detect_beats(file_path)
         if downbeats:

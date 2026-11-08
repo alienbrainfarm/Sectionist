@@ -61,13 +61,8 @@ def display_names(labels):
     return names
 
 
-def to_sections(segments, min_duration=1.0):
-    """Convert model segments into the API section shape.
-
-    Segments are dropped before merging, so a dropped sliver cannot leave two
-    identical labels adjacent. ``confidence`` is carried through when the
-    caller supplied it.
-    """
+def prepare_segments(segments, min_duration=1.0):
+    """Drop slivers and merge neighbouring segments with the same label."""
     kept = [
         dict(segment)
         for segment in segments
@@ -76,11 +71,15 @@ def to_sections(segments, min_duration=1.0):
     for segment in kept:
         segment["label"] = str(segment.get("label", "unknown")).lower().strip()
 
-    merged = merge_consecutive(kept)
-    names = display_names([segment["label"] for segment in merged])
+    return merge_consecutive(kept)
+
+
+def finalize_sections(segments):
+    """Turn prepared segments into the API section shape."""
+    names = display_names([segment["label"] for segment in segments])
 
     sections = []
-    for name, segment in zip(names, merged):
+    for name, segment in zip(names, segments):
         section = {
             "name": name,
             "start": round(float(segment["start"]), 2),
@@ -90,6 +89,11 @@ def to_sections(segments, min_duration=1.0):
             section["confidence"] = round(float(segment["confidence"]), 3)
         sections.append(section)
     return sections
+
+
+def to_sections(segments, min_duration=1.0):
+    """Prepare and finalise in one step."""
+    return finalize_sections(prepare_segments(segments, min_duration))
 
 
 def snap_boundaries(sections, downbeats, tolerance=0.35):
