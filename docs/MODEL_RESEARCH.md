@@ -148,19 +148,35 @@ The plan is implemented in [backend/analysis](../backend/analysis).
 - The model supplies only sections. Tempo, key, beats and chords still come
   from the librosa pipeline, so the response schema, the frontend and saved
   songs are unchanged.
-- Model sections carry no confidence, so the UI shows `—` rather than inventing
-  a number.
+- Sections carry the model's own probability for the chosen label, surfaced as
+  a confidence score in the UI. The frame-level logits that the checkpoint
+  discards are recovered with a hook on its post-processing call.
+- Beat This! supplies the beat count and the downbeat grid; boundaries snap to
+  the nearest downbeat within 0.35 s, which aligns sections to bars.
 - The optional dependencies live in `backend/requirements-songformer.txt` and
   are not installed by CI.
 
 ### Known limitations
 
 - **Repeated sections can receive different labels.** On `theone.mp3` the same
-  pre-chorus was labelled `chorus` at 48-80 s and `pre-chorus` at 128-144 s.
-  The model labels frames independently, so identical material is not
-  guaranteed the same label. Fixing it needs section-level consistency:
-  compare sections by audio similarity, then reconcile using the model's frame
-  probabilities. That is not implemented yet.
+  material is labelled `chorus` at 48-80 s and `pre-chorus` at 128-144 s. The
+  probabilities explain why this cannot be fixed by averaging:
+
+  | Section | chorus | pre-chorus |
+  | --- | --- | --- |
+  | 48-64 s | 0.76 | 0.20 |
+  | 64-80 s | 0.97 | 0.01 |
+  | 128-144 s | 0.22 | 0.61 |
+
+  The first occurrence points at `chorus` more strongly than the second points
+  at `pre-chorus`, so any automatic reconciliation (majority, averaging, or
+  "trust the more confident instance") pushes both towards `chorus` — the wrong
+  answer. A conservative version is therefore deliberately *not* enabled.
+
+  The useful workaround is user-driven: a "apply this label to similar
+  sections" action in the editor would let a correction made once propagate
+  deterministically. Fine-tuning a label head on corrected songs is the other
+  route. Both are follow-ups, not part of this change.
 - **Weak boundaries can be missed.** The 48-80 s section contains material that
   is split elsewhere, yet no boundary was placed inside it. The UI can split
   sections manually.

@@ -17,15 +17,28 @@ LABEL_DISPLAY = {
 }
 
 
+def _duration(segment):
+    return float(segment["end"]) - float(segment["start"])
+
+
 def merge_consecutive(segments):
     """Merge neighbouring segments that carry the same label.
 
-    ``segments`` is a list of dicts with ``start``, ``end`` and ``label``.
+    ``segments`` is a list of dicts with ``start``, ``end`` and ``label``, and
+    optionally ``confidence``. Confidences are combined as a duration-weighted
+    mean so a long confident section is not dragged down by a short one.
     """
     merged = []
     for segment in segments:
         if merged and merged[-1]["label"] == segment["label"]:
-            merged[-1]["end"] = segment["end"]
+            previous = merged[-1]
+            if "confidence" in previous and "confidence" in segment:
+                total = _duration(previous) + _duration(segment)
+                previous["confidence"] = (
+                    previous["confidence"] * _duration(previous)
+                    + segment["confidence"] * _duration(segment)
+                ) / total
+            previous["end"] = segment["end"]
         else:
             merged.append(dict(segment))
     return merged
@@ -52,8 +65,8 @@ def to_sections(segments, min_duration=1.0):
     """Convert model segments into the API section shape.
 
     Segments are dropped before merging, so a dropped sliver cannot leave two
-    identical labels adjacent. Model output carries no per-section confidence,
-    so the ``confidence`` key is omitted rather than invented.
+    identical labels adjacent. ``confidence`` is carried through when the
+    caller supplied it.
     """
     kept = [
         dict(segment)
@@ -66,11 +79,51 @@ def to_sections(segments, min_duration=1.0):
     merged = merge_consecutive(kept)
     names = display_names([segment["label"] for segment in merged])
 
-    return [
-        {
+    sections = []
+    for name, segment in zip(names, merged):
+        section = {
             "name": name,
             "start": round(float(segment["start"]), 2),
             "end": round(float(segment["end"]), 2),
         }
-        for name, segment in zip(names, merged)
+        if "confidence" in segment:
+            section["confidence"] = round(float(segment["confidence"]), 3)
+        sections.append(section)
+    return sections
+
+
+def snap_boundaries(sections, downbeats, tolerance=0.35):
+    """Snap section boundaries onto the nearest downbeat.
+
+    Only boundaries within ``tolerance`` seconds move, and ordering is
+    preserved: a snap that would cross a neighbouring boundary is discarded.
+    """
+    if not sections or not downbeats:
+        return sections
+
+    grid = sorted(float(value) for value in downbeats)
+    boundaries = [float(sections[0]["start"])] + [
+        float(section["end"]) for section in sections
     ]
+
+    snapped = [boundaries[0]]
+    for index in range(1, len(boundaries)):
+        value = boundaries[index]
+        nearest = min(grid, key=lambda beat: abs(beat - value))
+        if abs(nearest - value) <= tolerance:
+            snapped.append(round(nearest, 2))
+        else:
+            snapped.append(value)
+
+    # Never let a snap invert the order of two boundaries.
+    for index in range(1, len(snapped)):
+        if snapped[index] <= snapped[index - 1]:
+            snapped[index] = boundaries[index]
+
+    result = []
+    for index, section in enumerate(sections):
+        updated = dict(section)
+        updated["start"] = round(snapped[index], 2)
+        updated["end"] = round(snapped[index + 1], 2)
+        result.append(updated)
+    return result

@@ -3,10 +3,13 @@
 SongFormer predicts section boundaries and functional labels (intro, verse,
 pre-chorus, chorus, bridge, instrumental, silence, outro) directly from the
 audio. It replaces the heuristic segmentation from ``example.py`` while the
-tempo, key, beat and chord estimates still come from the librosa pipeline.
+tempo, key and chord estimates still come from the librosa pipeline.
 
-Optional: this module imports torch and transformers lazily, so the backend
-runs without them. See docs/MODEL_RESEARCH.md for setup and measured timings.
+Beat This! is used, when installed, for the beat count and to snap section
+boundaries onto downbeats so sections line up with bars.
+
+Optional: torch and transformers are imported lazily, so the backend runs
+without them. See docs/MODEL_RESEARCH.md for setup and measured timings.
 """
 
 import importlib.util
@@ -15,13 +18,16 @@ import sys
 import threading
 from pathlib import Path
 
+import numpy as np
+
 from .base import Analyzer
+from .beats import beats_available, detect_beats
+from .device import resolve_device
 from .librosa_engine import LibrosaAnalyzer
-from .sections import to_sections
+from .sections import snap_boundaries, to_sections
 
 SAMPLE_RATE = 24000
 MODEL_DIR_ENV = "SECTIONIST_MODEL_DIR"
-DEVICE_ENV = "SECTIONIST_DEVICE"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL_DIR = REPO_ROOT / ".hf-cache" / "SongFormer"
@@ -29,6 +35,9 @@ DEFAULT_MODEL_DIR = REPO_ROOT / ".hf-cache" / "SongFormer"
 _models = {}
 _model_lock = threading.Lock()
 _inference_lock = threading.Lock()
+
+# Filled in by the post-processing hook installed on the loaded model.
+_capture = {}
 
 
 def model_dir():
@@ -47,23 +56,68 @@ def songformer_available():
     return directory.is_dir() and (directory / "config.json").exists()
 
 
-def resolve_device(requested=None):
-    """Pick an inference device.
+def _softmax(logits):
+    shifted = logits - logits.max(axis=1, keepdims=True)
+    exponentials = np.exp(shifted)
+    return exponentials / exponentials.sum(axis=1, keepdims=True)
 
-    CUDA is used automatically when present. Apple's MPS is deliberately *not*
-    selected automatically: it is faster on short inputs but collapses on
-    longer ones on unified-memory machines (measured in docs/MODEL_RESEARCH.md).
-    Set ``SECTIONIST_DEVICE=mps`` to opt in.
+
+def _install_logit_capture(model):
+    """Capture the frame-level logits that the wrapper otherwise discards.
+
+    The checkpoint's forward pass builds per-frame label logits and then throws
+    them away, keeping only the arg-max per section. Hooking its post-processing
+    call is the least invasive way to recover the probabilities, which we need
+    to report a per-section confidence. If the hook cannot be installed the
+    engine still works, just without confidence values.
     """
-    choice = (requested or os.environ.get(DEVICE_ENV, "auto") or "auto").strip().lower()
-    if choice not in ("", "auto"):
-        return choice
+    try:
+        module = sys.modules[type(model).__module__]
+        original = module.postprocess_functional_structure
+        if getattr(original, "_sectionist_capture", False):
+            return
 
-    import torch
+        def capture(logits, config):
+            try:
+                _capture["function_logits"] = (
+                    logits["function_logits"][0].detach().cpu().numpy().copy()
+                )
+                _capture["frame_rate"] = float(config.frame_rates)
+            except Exception:
+                _capture.clear()
+            return original(logits, config)
 
-    if torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
+        capture._sectionist_capture = True
+        module.postprocess_functional_structure = capture
+    except Exception:
+        _capture.clear()
+
+
+def _annotate(segments, id_to_label):
+    """Add a confidence (and the probability-based label) to each segment."""
+    logits = _capture.get("function_logits")
+    frame_rate = _capture.get("frame_rate")
+    if logits is None or not frame_rate:
+        return segments
+
+    probabilities = _softmax(logits)
+    annotated = []
+    for segment in segments:
+        start = max(0, int(round(segment["start"] * frame_rate)))
+        end = min(
+            len(probabilities), max(start + 1, int(round(segment["end"] * frame_rate)))
+        )
+        if end <= start:
+            annotated.append(dict(segment))
+            continue
+
+        mean = probabilities[start:end].mean(axis=0)
+        best = int(mean.argmax())
+        item = dict(segment)
+        item["label"] = id_to_label.get(best, segment["label"])
+        item["confidence"] = float(mean[best])
+        annotated.append(item)
+    return annotated
 
 
 def _load_model(directory, device):
@@ -85,8 +139,12 @@ def _load_model(directory, device):
         )
         model.eval()
         model.to(device)
-        _models[key] = model
-        return model
+        _install_logit_capture(model)
+
+        from dataset.label2id import ID_TO_LABEL
+
+        _models[key] = (model, dict(ID_TO_LABEL))
+        return _models[key]
 
 
 class SongFormerAnalyzer(Analyzer):
@@ -110,20 +168,41 @@ class SongFormerAnalyzer(Analyzer):
     def _model(self):
         return _load_model(self.directory, self.device)
 
+    def _detect_beats(self, file_path):
+        if not beats_available():
+            return None, None
+        try:
+            return detect_beats(file_path, device=self.device)
+        except Exception as exc:  # pragma: no cover - depends on optional model
+            print(f"Beat tracking unavailable: {exc}")
+            return None, None
+
     def analyze(self, file_path: str) -> dict:
         import librosa
         import torch
 
-        # Tempo, key, beats and chords still come from the existing pipeline.
+        # Tempo, key and chords still come from the existing pipeline.
         result = self._baseline.analyze(file_path)
 
         audio, _ = librosa.load(file_path, sr=SAMPLE_RATE, mono=True)
         tensor = torch.from_numpy(audio).to(self.device)
 
-        model = self._model()
-        with _inference_lock, torch.inference_mode():
-            predicted = model(tensor)
+        model, id_to_label = self._model()
+        with _inference_lock:
+            _capture.clear()
+            with torch.inference_mode():
+                predicted = model(tensor)
+            predicted = _annotate(predicted, id_to_label)
+            _capture.clear()
 
-        result["sections"] = to_sections(predicted)
+        sections = to_sections(predicted)
+
+        beats, downbeats = self._detect_beats(file_path)
+        if downbeats:
+            sections = snap_boundaries(sections, downbeats)
+        if beats:
+            result["beats_detected"] = len(beats)
+
+        result["sections"] = sections
         result["engine"] = self.name
         return result

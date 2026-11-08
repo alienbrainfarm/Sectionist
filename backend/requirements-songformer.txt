@@ -17,3 +17,7 @@ omegaconf
 ema-pytorch
 muq
 msaf
+
+# Beat and downbeat tracking (MIT code and weights, no madmom DBN).
+# Checkpoints cache under TORCH_HOME; set it to a writable directory.
+beat-this
