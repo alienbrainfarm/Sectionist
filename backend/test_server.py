@@ -160,7 +160,7 @@ def test_analyze_success(mock_analyze, client):
 def test_analyze_error(mock_analyze, client):
     """Test analyze endpoint when analysis fails."""
     # Mock the analysis function to raise an exception
-    mock_analyze.side_effect = Exception("Analysis failed")
+    mock_analyze.side_effect = Exception("decoder crashed in /secret/internal/path")
 
     # Create a temporary WAV file
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -188,6 +188,8 @@ def test_analyze_error(mock_analyze, client):
             assert response_data["success"] is False
             assert "error" in response_data
             assert "Analysis failed" in response_data["error"]
+            # Exception details stay in the server log, not the response.
+            assert "/secret/internal/path" not in response_data["error"]
 
         finally:
             # Clean up

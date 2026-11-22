@@ -7,6 +7,10 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+# Jobs only read the repository; nothing here needs a writable token.
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend (Python ${{ matrix.python-version }})

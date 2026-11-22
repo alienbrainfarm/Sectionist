@@ -13,6 +13,7 @@ from . import stems as stem_separation
 
 KEEP_JOBS = 32  # finished jobs remembered for polling and download
 MAX_PENDING = 8  # queued or running; more is refused rather than piling up
+TOO_MANY_JOBS_MESSAGE = "Too many stem jobs waiting; try again shortly."
 
 
 class TooManyJobs(RuntimeError):
@@ -48,7 +49,7 @@ def _remember(job):
     with _jobs_lock:
         pending = [j for j in _jobs.values() if j.status in ("queued", "running")]
         if len(pending) >= MAX_PENDING:
-            raise TooManyJobs("Too many stem jobs waiting; try again shortly.")
+            raise TooManyJobs(TOO_MANY_JOBS_MESSAGE)
         _jobs[job.id] = job
         excess = len(_jobs) - KEEP_JOBS
         if excess > 0:

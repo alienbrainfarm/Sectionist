@@ -33,6 +33,7 @@ app = Flask(__name__)
 UPLOAD_FOLDER = tempfile.gettempdir()
 MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max file size
 ALLOWED_EXTENSIONS = {"mp3", "wav", "aiff", "aif", "m4a", "flac", "ogg", "aac"}
+UPLOAD_SUFFIXES = {extension: "." + extension for extension in ALLOWED_EXTENSIONS}
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -91,6 +92,16 @@ def engine_status():
     return status
 
 
+def engine_unavailable_message():
+    """Explain an unusable engine without echoing the exception text."""
+    configured = os.environ.get("SECTIONIST_ENGINE", "auto")
+    available = ", ".join(available_engines())
+    return (
+        f"The configured analysis engine ({configured!r}) is unavailable. "
+        f"Available engines: {available}. See the backend log for setup steps."
+    )
+
+
 def allowed_file(filename):
     """Check if the uploaded file has an allowed extension."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -143,15 +154,18 @@ def split_stems():
 
     # A unique name: two uploads of songs with the same file name must not
     # overwrite each other while both jobs are queued.
-    suffix = "." + file.filename.rsplit(".", 1)[1].lower()
+    # The suffix comes from our own table, never from the upload's name, so no
+    # part of a client-supplied filename can reach the filesystem path.
+    extension = file.filename.rsplit(".", 1)[1].lower()
+    suffix = UPLOAD_SUFFIXES[extension]
     handle, temp_path = tempfile.mkstemp(suffix=suffix, dir=UPLOAD_FOLDER)
     os.close(handle)
     file.save(temp_path)
 
     try:
         job = start_stem_job(temp_path, model)
-    except stem_jobs.TooManyJobs as busy:
-        return jsonify({"error": str(busy)}), 429
+    except stem_jobs.TooManyJobs:
+        return jsonify({"error": stem_jobs.TOO_MANY_JOBS_MESSAGE}), 429
     return jsonify(job.info()), 202
 
 
@@ -247,13 +261,16 @@ def analyze_audio():
             except OSError:
                 pass  # Ignore cleanup errors
 
+    # Exception text stays in the server log: it can carry file paths and
+    # library internals that clients have no business seeing.
     except EngineUnavailable as e:
         print(f"Engine unavailable: {e}")
-        return jsonify({"success": False, "error": str(e)}), 503
+        return jsonify({"success": False, "error": engine_unavailable_message()}), 503
     except Exception as e:
         print(f"Error during analysis: {str(e)}")
         traceback.print_exc()
-        return jsonify({"success": False, "error": f"Analysis failed: {str(e)}"}), 500
+        message = "Analysis failed; see the backend log for details."
+        return jsonify({"success": False, "error": message}), 500
 
 
 @app.route("/formats", methods=["GET"])
